@@ -93,6 +93,7 @@ packages = [
     "zhuangzhou.envs.bridges",
     "zhuangzhou.enzyme_specificity",
     "zhuangzhou.gromacs_md",
+    "zhuangzhou.genomics",
     "zhuangzhou.huizi",
     "zhuangzhou.ligbuilder_gen",
     "zhuangzhou.memory",

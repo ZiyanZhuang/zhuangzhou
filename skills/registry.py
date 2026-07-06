@@ -368,6 +368,13 @@ class SkillRegistry:
         except Exception as e:
             logger.debug("Skipped synbio skills: %s", e)
 
+        # Load population-genomics workflow planning skills
+        try:
+            from . import genomics
+            genomics.register(self)
+        except Exception as e:
+            logger.debug("Skipped genomics skills: %s", e)
+
         # Load local AI bioinformatics skills (Boltz-2, ProteinMPNN, LigandMPNN via dplm2; BLAST via NCBI)
         try:
             from . import openbio

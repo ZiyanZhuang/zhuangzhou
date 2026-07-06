@@ -36,8 +36,8 @@ scientific operating system:
 - **Build:** generate construct-level suggestions, codon-optimized sequences,
   CRISPR edits, and expression-control choices.
 - **Test:** organize simulation outputs, assay hypotheses, and validation plans.
-- **Learn:** preserve decisions, failures, and experimental feedback as reusable
-  project memory.
+- **Learn:** preserve decisions, failures, experimental feedback, and genomics
+  evidence as reusable project memory.
 
 Zhuangzhou is therefore best described as:
 
@@ -100,6 +100,7 @@ model wrapper.
 | Molecular modeling | `smartdocking`, `gromacs_md`, `amber_md`, `CYPamber`, `cypforge`, `cypforge_core`, `nonstandard_res`, `qm_engine` | Docking, MD, CYP/heme workflows, CYPForge heme-ligand preparation gates, non-standard residue handling, QM preflight and analysis |
 | Synthetic biology | `synbio`, `codon_opt`, `workflow_options` | Parts selection, Assembor yeast promoter/terminator candidates, CRISPR guide design, codon optimization, expression balance, design packaging |
 | Metabolic reasoning | `metakg`, `brain`, `huizi` | GEM/FBA bridge, GraphRAG/knowledge context, session-aware protein context |
+| Genomics computation | `genomics` | VCF/PLINK population-genomics command planning, sample-map validation, diversity/Fst/PCA/ADMIXTURE/TreeMix/IQ-TREE handoff |
 | Reporting and memory | `report`, `memory`, `workflow` | Structured reports, project memory, reusable workflow templates |
 
 ## Agent Architecture
@@ -167,6 +168,19 @@ and pathway engineering.
 - DNAchisel backend when installed, with a frequency fallback.
 - GC-content constraints, translation enforcement, and avoid-pattern hooks.
 
+### Genomics Computation
+
+- VCF and two-column population-map input-contract checks before
+  population-level analysis.
+- Auditable Linux command plans for nucleotide diversity, Tajima's D,
+  observed heterozygosity, pairwise Fst, PCA, ADMIXTURE, TreeMix, IQ-TREE, and
+  VCF2Dis.
+- Explicit QC defaults for MAF, missingness, LD pruning, window size, and
+  runtime version capture.
+- Designed for DBTL feedback loops where strain panels, evolved populations, or
+  segregating libraries need reproducible population-genetic evidence before the
+  next design round.
+
 ### Enzyme Engineering
 
 - Mutation enrichment with secondary structure, RSA, active-site distance,
@@ -197,6 +211,9 @@ and pathway engineering.
   endpoints, and local Ollama-style backends are treated as optional planners.
 - **Environment isolation.** Native tools, WSL tools, conda environments, and
   remote SSH compute can be configured independently.
+- **Genomics-aware DBTL feedback.** VCF/PLINK workflows are represented as
+  inspectable command plans with sample validation, QC parameters, and methods
+  text rather than opaque notebook fragments.
 - **Privacy-conscious configuration.** API keys, host paths, SSH settings, and
   heavyweight model files are externalized and ignored by Git.
 - **Reproducible packaging.** Source distributions exclude caches, logs, local
@@ -327,6 +344,19 @@ status = cypforge_available()
 print(status["available"], status.get("module_count"))
 ```
 
+```python
+from zhuangzhou.genomics import build_popgen_workflow
+
+plan = build_popgen_workflow(
+    analyses=["diversity", "fst", "pca", "admixture"],
+    vcf="cohort.vcf.gz",
+    popmap="pop_map.txt",
+    workdir="popgen_work",
+)
+print(plan["blocks"][0]["commands"])
+print(plan["method_note"])
+```
+
 ## Example AI DBTL Workflow
 
 1. **Intent capture:** define target product, chassis, constraints, and success
@@ -343,7 +373,10 @@ print(status["available"], status.get("module_count"))
    draft CRISPR/knockout strategies.
 7. **Test planning:** define assays, expected readouts, failure modes, and data
    fields to capture.
-8. **Learn setup:** export a report and preserve assumptions/results so the next
+8. **Learn from omics:** validate VCF/sample-map inputs, plan diversity,
+   structure, and ancestry analyses, and store the resulting evidence for the
+   next design cycle.
+9. **Learn setup:** export a report and preserve assumptions/results so the next
    design round starts from evidence rather than memory loss.
 
 ## Current Status
