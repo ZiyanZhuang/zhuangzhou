@@ -1,0 +1,61 @@
+{
+    "name": "enzyme_engineering_v1",
+    "description": "Standard enzyme mutation screening: ESM-2 -> classify -> chemical analysis -> combinations -> report",
+    "version": "1.0",
+    "inputs": {
+        "pdb_path": {"type": "path", "description": "Protein PDB file", "required": true},
+        "binding_site": {"type": "set", "description": "Active site residue numbers", "required": true},
+        "esm2_dirs": {"type": "list", "description": "ESM-2 result directories", "required": false},
+        "enzyme_class": {"type": "string", "description": "Enzyme class", "required": false},
+        "ligand": {"type": "string", "description": "Ligand name", "required": false},
+        "protein_name": {"type": "string", "description": "Protein name", "required": false}
+    },
+    "steps": [
+        {
+            "id": "step_esm2",
+            "skill": "esm2_load",
+            "description": "Load ESM-2 multi-model mutation predictions",
+            "params": {
+                "result_dirs": "$input.esm2_dirs"
+            },
+            "output_key": "esm2_mutations",
+            "on_error": "continue"
+        },
+        {
+            "id": "step_cofactors",
+            "skill": "cofactor_detection",
+            "description": "Detect cofactors and metal ions",
+            "params": {
+                "pdb_path": "$input.pdb_path"
+            },
+            "output_key": "cofactors",
+            "on_error": "continue"
+        },
+        {
+            "id": "step_classify",
+            "skill": "mutation_classification",
+            "description": "Classify mutations by structural role",
+            "params": {
+                "pdb_path": "$input.pdb_path",
+                "mutations": "$step_esm2.esm2_mutations",
+                "binding_site": "$input.binding_site"
+            },
+            "output_key": "classifications",
+            "on_error": "continue"
+        },
+        {
+            "id": "step_pipeline",
+            "skill": "zhuangzhou_pipeline",
+            "description": "Run full 5-phase analysis pipeline",
+            "params": {
+                "pdb_path": "$input.pdb_path",
+                "binding_site": "$input.binding_site",
+                "esm2_dirs": "$input.esm2_dirs",
+                "enzyme_class": "$input.enzyme_class",
+                "ligand": "$input.ligand",
+                "protein_name": "$input.protein_name"
+            },
+            "output_key": "pipeline_results"
+        }
+    ]
+}

@@ -1,0 +1,16 @@
+; Atom types for HEME (protoporphyrin IX + Fe)
+; Based on CHARMM27 parameters
+; Include this AFTER forcefield.itp and BEFORE heme.itp
+
+[ atomtypes ]
+; name    at.num  mass      charge  ptype  sigma        epsilon
+  FE        26    55.84500  0.0000  A      0.000125247  0.00000054393  ; Fe2+ (non-bonded part tiny; bonded model)
+  NPH        7    14.00700  0.0000  A      0.325000000  0.71128000000  ; Porphyrin nitrogen
+  CPA        6    12.01100  0.0000  A      0.355000000  0.29288000000  ; Porphyrin alpha carbon
+  CPB        6    12.01100  0.0000  A      0.355000000  0.29288000000  ; Porphyrin beta carbon
+  CPM        6    12.01100  0.0000  A      0.355000000  0.29288000000  ; Porphyrin meso carbon
+  CE1        6    12.01100  0.0000  A      0.355000000  0.29288000000  ; Alkene/side chain C
+  CE2        6    12.01100  0.0000  A      0.355000000  0.29288000000  ; Terminal vinyl C
+  CT3        6    12.01100  0.0000  A      0.358141000  0.33472000000  ; Methyl C
+  OC         8    15.99900  0.0000  A      0.302905600  0.50209200000  ; Carboxylate O
+  HA         1     1.00800  0.0000  A      0.240000000  0.06276000000  ; Aromatic/vinyl H

@@ -1,0 +1,55 @@
+# Zhuangzhou GROMACS MD Configuration
+# Copy this file to ~/.zhuangzhou/gromacs_md.ini and edit paths for your system.
+# All paths can also be set via environment variables (GMX_BIN, SOBTOP_DIR, etc.)
+
+[paths]
+# GROMACS executable (auto-detected from PATH if not set)
+# gmx_bin = /path/to/gmx
+
+# GROMACS topology directory (auto-detected from gmx location)
+# gmxlib = /path/to/gromacs/top
+
+# SOBTOP for ligand GAFF parameterization (directory containing sobtop.exe)
+# sobtop_dir = /path/to/sobtop
+
+# OpenBabel for file conversion
+# obabel_exe = /path/to/obabel
+
+# PyMOL python for headless rendering (optional, for visualization)
+# pymol_python = /path/to/pymol/python
+
+# FFmpeg for trajectory video encoding (optional)
+# ffmpeg = /path/to/ffmpeg
+
+[simulation]
+# Force field (amber99sb-ildn, charmm27, oplsaa, gromos54a7, etc.)
+ff = amber99sb-ildn
+
+# Water model
+water = tip3p
+
+# Box distance from solute to edge (nm)
+box_dist = 1.2
+
+# Box type (cubic, dodecahedron, octahedron)
+box_type = dodecahedron
+
+# Temperature (K)
+temp = 300
+
+# Pressure (bar)
+pressure = 1.0
+
+[gpu]
+# GPU flags for energy minimization (only nb can use GPU for steep/cg)
+gpu_flags_em = -nb gpu
+
+# GPU flags for MD/equilibration (full offload for maximum performance)
+gpu_flags_full = -nb gpu -pme gpu -bonded gpu -update gpu
+
+[timeouts]
+# Timeout in seconds for each stage
+timeout_setup = 120
+timeout_em = 600
+timeout_equil = 1200
+timeout_md = 86400

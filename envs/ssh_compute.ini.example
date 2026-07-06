@@ -1,0 +1,38 @@
+; Zhuangzhou SSH Compute Configuration
+; =====================================
+; Copy to ~/.zhuangzhou/ssh_compute.ini and edit.
+;
+; Each [host:NAME] section defines a remote compute node.
+; capabilities: comma-separated list of what this host can run
+;   gpu, gromacs, qm, docking, plm, all
+;
+; Security: use Ed25519 SSH key auth, never store passwords here.
+;   ssh-keygen -t ed25519 -C "zhuangzhou@local"
+;   ssh-copy-id -i ~/.ssh/id_ed25519.pub zz_runner@<server>
+
+[host:gpu_server]
+host = 192.168.1.100
+port = 22
+user = zz_runner
+key_path = ~/.ssh/id_ed25519
+remote_work_dir = /home/zz_runner/zhuangzhou_jobs
+conda_init = source /opt/conda/etc/profile.d/conda.sh
+conda_env = zhuangzhou_env
+capabilities = gpu, gromacs, qm, docking, plm
+use_tmux = true
+timeout = 86400
+max_concurrent = 4
+
+; Example: HPC cluster with module-based environment
+; [host:hpc_cluster]
+; host = hpc.example.edu
+; port = 22
+; user = myuser
+; key_path = ~/.ssh/id_ed25519_hpc
+; remote_work_dir = /scratch/myuser/zhuangzhou_jobs
+; conda_init = module load anaconda3 && source activate
+; conda_env = zz_compute
+; capabilities = gromacs, qm
+; use_tmux = true
+; timeout = 172800
+; max_concurrent = 8

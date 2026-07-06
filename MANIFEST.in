@@ -1,0 +1,26 @@
+prune .serena
+prune storage
+prune zhuangzhou.egg-info
+recursive-exclude zhuangzhou.egg-info *
+prune **/.git
+prune **/__pycache__
+prune smartdocking/engines
+prune gromacs_md/cgenff_charmm2gmx/.git
+
+global-exclude *.py[cod]
+global-exclude *.pyo
+global-exclude *.pyd
+global-exclude *.pt
+global-exclude *.pth
+global-exclude *.ckpt
+global-exclude *.safetensors
+global-exclude *.onnx
+global-exclude *.pkl
+global-exclude *.pickle
+global-exclude *.bin
+global-exclude *.log
+global-exclude *.bak
+global-exclude *.tmp
+global-exclude *.key
+global-exclude *credentials*
+global-exclude ssh_compute.ini

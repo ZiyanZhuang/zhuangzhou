@@ -1,0 +1,120 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zhuangzhou"
+version = "0.8.6"
+description = "Rational enzyme engineering framework with NLP-driven computational skills"
+readme = "docs/REPORT_v0.7.0.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "BeTaThink Team"}]
+keywords = ["enzyme-engineering", "molecular-dynamics", "docking", "bioinformatics"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+# Core dependencies -- always needed
+dependencies = [
+    "rich>=13.0",
+    "biopython>=1.80",
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "requests>=2.28",
+    "prompt_toolkit>=3.0",
+]
+
+[project.optional-dependencies]
+# NLP: natural language interface (LLM backends)
+nlp = [
+    "anthropic>=0.40",        # Claude API
+    "openai>=1.0",            # DeepSeek / OpenAI API
+]
+
+# Chemistry: molecular operations
+chem = [
+    "rdkit",                  # Cheminformatics
+    "meeko",                  # Vina PDBQT preparation
+]
+
+# Codon optimization
+codon = [
+    "dnachisel",              # CAI optimization
+    "python-codon-tables",    # Kazusa codon tables
+    "CAI",                    # Codon Adaptation Index
+]
+
+# Visualization
+viz = [
+    "matplotlib>=3.7",
+    "seaborn>=0.12",
+]
+
+# Development
+dev = [
+    "pytest>=7.0",
+    "mypy>=1.0",
+    "ruff>=0.1",
+]
+
+# Everything
+all = [
+    "zhuangzhou[nlp,chem,codon,viz,dev]",
+]
+
+[project.scripts]
+# CLI entry points
+zhuangzhou = "zhuangzhou.app:main"
+zz = "zhuangzhou.app:main"
+zz-cli = "zhuangzhou.cli:main"
+zz-chat = "zhuangzhou.nlp.repl:main"
+
+[project.urls]
+Repository = "https://github.com/BeTaThink/zhuangzhou"
+
+[tool.setuptools]
+package-dir = {"zhuangzhou" = "."}
+packages = [
+    "zhuangzhou",
+    "zhuangzhou.agents",
+    "zhuangzhou.amber_md",
+    "zhuangzhou.brain",
+    "zhuangzhou.chimerax_viz",
+    "zhuangzhou.codon_opt",
+    "zhuangzhou.commands",
+    "zhuangzhou.envs",
+    "zhuangzhou.envs.bridges",
+    "zhuangzhou.enzyme_specificity",
+    "zhuangzhou.gromacs_md",
+    "zhuangzhou.huizi",
+    "zhuangzhou.ligbuilder_gen",
+    "zhuangzhou.memory",
+    "zhuangzhou.metakg",
+    "zhuangzhou.molecularconformer",
+    "zhuangzhou.mutagenesis",
+    "zhuangzhou.mutate_minimize",
+    "zhuangzhou.mutation_enricher",
+    "zhuangzhou.nlp",
+    "zhuangzhou.nonstandard_res",
+    "zhuangzhou.plip_analysis",
+    "zhuangzhou.pymol_viz",
+    "zhuangzhou.qm_engine",
+    "zhuangzhou.report",
+    "zhuangzhou.skills",
+    "zhuangzhou.smartdocking",
+    "zhuangzhou.synbio",
+    "zhuangzhou.ui",
+    "zhuangzhou.utils",
+    "zhuangzhou.workflow",
+    "zhuangzhou.workflow_options",
+]
+
+[tool.setuptools.package-data]
+"zhuangzhou" = ["gromacs_md/templates/*.mdp", "nonstandard_res/params/*.itp", "molecularconformer/weights/*.txt"]

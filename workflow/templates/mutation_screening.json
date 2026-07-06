@@ -1,0 +1,50 @@
+{
+    "name": "mutation_screening",
+    "description": "PLM-guided mutation screening with 4-layer funnel: PLM -> Structure -> Chemistry -> Validation",
+    "version": "1.0",
+    "inputs": {
+        "pdb_path": {"type": "path", "description": "Protein PDB file", "required": true},
+        "binding_site": {"type": "set", "description": "Active site residues", "required": true},
+        "esm2_dirs": {"type": "list", "description": "ESM-2 result dirs", "required": true},
+        "ligand_sdf": {"type": "path", "description": "Ligand SDF for docking validation", "required": false}
+    },
+    "steps": [
+        {
+            "id": "layer0_prescreen",
+            "skill": "esm2_load",
+            "description": "Layer 0: Load PLM predictions + conservation pre-screening",
+            "params": {"result_dirs": "$input.esm2_dirs"},
+            "output_key": "plm_mutations"
+        },
+        {
+            "id": "layer1_classify",
+            "skill": "mutation_classification",
+            "description": "Layer 1: Structural role classification",
+            "params": {
+                "pdb_path": "$input.pdb_path",
+                "mutations": "$layer0_prescreen.plm_mutations",
+                "binding_site": "$input.binding_site"
+            },
+            "output_key": "structural_roles"
+        },
+        {
+            "id": "layer2_cofactors",
+            "skill": "cofactor_detection",
+            "description": "Layer 2: Cofactor/metal context",
+            "params": {"pdb_path": "$input.pdb_path"},
+            "output_key": "cofactor_context",
+            "on_error": "continue"
+        },
+        {
+            "id": "layer3_pipeline",
+            "skill": "zhuangzhou_pipeline",
+            "description": "Layer 3: Full chemical intuition + combination analysis",
+            "params": {
+                "pdb_path": "$input.pdb_path",
+                "binding_site": "$input.binding_site",
+                "esm2_dirs": "$input.esm2_dirs"
+            },
+            "output_key": "screening_results"
+        }
+    ]
+}

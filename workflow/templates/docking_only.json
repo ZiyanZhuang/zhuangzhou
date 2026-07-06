@@ -1,0 +1,55 @@
+{
+    "name": "docking_only",
+    "description": "Quick docking workflow: grid generation -> Vina docking -> PLIP analysis",
+    "version": "1.0",
+    "inputs": {
+        "protein_pdb": {"type": "path", "description": "Protein PDB file", "required": true},
+        "ligand_sdf": {"type": "path", "description": "Ligand SDF file", "required": true},
+        "center": {"type": "list", "description": "Grid center (x,y,z)", "required": false}
+    },
+    "steps": [
+        {
+            "id": "step_grid",
+            "skill": "generate_docking_grid",
+            "description": "Generate docking grid from ligand",
+            "params": {
+                "ligand_sdf": "$input.ligand_sdf"
+            },
+            "output_key": "grid",
+            "on_error": "continue"
+        },
+        {
+            "id": "step_dock",
+            "skill": "vina_docking",
+            "description": "Run Vina molecular docking",
+            "params": {
+                "protein_pdb": "$input.protein_pdb",
+                "ligand_sdf": "$input.ligand_sdf",
+                "center": "$input.center"
+            },
+            "output_key": "docking_result"
+        },
+        {
+            "id": "step_complex",
+            "skill": "generate_complex",
+            "description": "Generate protein-ligand complex",
+            "params": {
+                "protein_pdb": "$input.protein_pdb",
+                "ligand_sdf": "$input.ligand_sdf"
+            },
+            "output_key": "complex",
+            "on_error": "continue"
+        },
+        {
+            "id": "step_plip",
+            "skill": "plip_analysis",
+            "description": "Analyze protein-ligand interactions",
+            "params": {
+                "complex_pdb": "$step_complex.complex_pdb"
+            },
+            "output_key": "interactions",
+            "condition": "$step_complex.success == true",
+            "on_error": "continue"
+        }
+    ]
+}

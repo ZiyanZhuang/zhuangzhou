@@ -1,0 +1,35 @@
+{
+    "name": "full_mutation_report_v1",
+    "description": "Complete pipeline: fetch protein → detect cofactors → screen mutations → dock → PLIP → visualize → Word report",
+    "version": "1.0",
+    "inputs": {
+        "pdb_id": {"type": "string", "description": "PDB ID to auto-download", "required": false},
+        "pdb_path": {"type": "path", "description": "Local PDB file path", "required": false},
+        "mutations": {"type": "string", "description": "Comma-separated mutations (e.g. V21L,F87A)", "required": false},
+        "ligand_smiles": {"type": "string", "description": "Ligand SMILES", "required": false},
+        "ligand_name": {"type": "string", "description": "Ligand common name", "required": false},
+        "run_docking": {"type": "bool", "description": "Run molecular docking", "required": false, "default": true},
+        "run_md": {"type": "bool", "description": "Run MD simulation", "required": false, "default": false},
+        "output_dir": {"type": "path", "description": "Output directory", "required": false},
+        "author": {"type": "string", "description": "Report author", "required": false, "default": "Zhuangzhou"}
+    },
+    "steps": [
+        {
+            "id": "step_pipeline_report",
+            "skill": "full_pipeline_report",
+            "description": "Run the complete analysis pipeline and generate Word report",
+            "params": {
+                "pdb_id": "$input.pdb_id",
+                "pdb_path": "$input.pdb_path",
+                "mutations": "$input.mutations",
+                "ligand_smiles": "$input.ligand_smiles",
+                "ligand_name": "$input.ligand_name",
+                "run_docking": "$input.run_docking",
+                "run_md": "$input.run_md",
+                "output_dir": "$input.output_dir",
+                "author": "$input.author"
+            },
+            "output_key": "report"
+        }
+    ]
+}

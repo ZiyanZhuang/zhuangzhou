@@ -1,0 +1,81 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
+build/
+*.egg
+
+# GROMACS simulation outputs
+*.xtc
+*.edr
+*.tpr
+*.cpt
+*.xvg
+*.trr
+*.gro
+!gromacs_md/templates/*.mdp
+mdout.mdp
+
+# Editor backups
+*~
+\#*\#
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace
+.serena/
+**/.git/
+
+# Test outputs
+tests/test_output/
+
+# Large simulation directories
+cyp_1po5_*/
+storage/
+**/_overlay_exports/
+
+# Large model/checkpoint artifacts
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.pkl
+*.pickle
+*.bin
+!**/weights/*.dict.txt
+!**/weights/dict_*.txt
+!**/weights/mol.dict.txt
+!**/weights/poc.dict.txt
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+*.log
+*_conversation_*.json
+
+# Secrets
+.env
+.env.*
+envs/ssh_compute.ini
+*.key
+credentials.*
+*credentials*
+config.local.*
+*.pem
+*.p12

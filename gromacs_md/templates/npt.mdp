@@ -1,0 +1,35 @@
+; NPT Equilibration (100 ps)
+define      = __DEFINE__
+integrator  = md
+nsteps      = 50000
+dt          = 0.002
+nstxout     = 0
+nstvout     = 0
+nstenergy   = 500
+nstlog      = 500
+nstxout-compressed = 5000
+continuation    = yes
+constraint_algorithm = lincs
+constraints     = h-bonds
+lincs_iter      = 1
+lincs_order     = 4
+nstlist         = 10
+cutoff-scheme   = Verlet
+coulombtype     = PME
+rcoulomb        = 1.0
+rvdw            = 1.0
+DispCorr        = EnerPres
+pbc             = xyz
+tcoupl      = V-rescale
+tc-grps     = __TC_GRPS__
+tau_t       = __TAU_T__
+ref_t       = __REF_T__
+; C-rescale for equilibration (Parrinello-Rahman can cause instability
+; if system is not yet equilibrated — GROMACS manual recommends C-rescale
+; or Berendsen for equilibration, then switch to P-R for production)
+pcoupl          = C-rescale
+pcoupltype      = isotropic
+tau_p           = 5.0
+ref_p           = __PRESSURE__
+compressibility = 4.5e-5
+gen_vel     = no
