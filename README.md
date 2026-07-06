@@ -1,15 +1,49 @@
 # Zhuangzhou
 
-Zhuangzhou is a rational enzyme engineering and synthetic biology design system.
-It combines deterministic bioinformatics, molecular modeling, metabolic modeling,
-sequence design, and an optional natural-language control plane for DBTL-style
-engineering workflows.
+Zhuangzhou is an AI Scientist Workbench for synthetic biology, enzyme
+engineering, and computational DBTL design. It turns a biological intent such as
+"improve this enzyme", "build this pathway", or "prepare this construct for a
+host chassis" into an executable, auditable design workflow.
 
-The core idea is simple: language models may help decide what to try next, but
-the scientific outputs should come from explicit algorithms, structured data, and
-reproducible tool calls.
+The product direction is a specialized Claude Science for bioengineering: a
+domain agent that combines language-model planning with real scientific tools,
+structured biological knowledge, pathway reasoning, molecular simulation,
+sequence design, and experiment-ready reporting.
 
-## What Problem It Targets
+The principle is simple: the AI proposes and coordinates; Zhuangzhou computes,
+checks, records, and packages. Scientific outputs should come from explicit
+algorithms, structured data, database calls, and reproducible tool execution, not
+from unsupported text generation.
+
+## Product Positioning
+
+Zhuangzhou is not a general chatbot and not just a folder of bioinformatics
+scripts. It is designed as a domain-specific AI scientist for the DBTL loop:
+
+```text
+User intent
+  -> AI task planning
+  -> tool-routed computational design
+  -> evidence-ranked variants / pathways / constructs
+  -> report and experimental handoff
+  -> test-result memory for the next design round
+```
+
+The long-term product goal is to make synthetic biology design feel like a
+scientific operating system:
+
+- **Design:** reason over pathways, enzymes, structures, parts, and host context.
+- **Build:** generate construct-level suggestions, codon-optimized sequences,
+  CRISPR edits, and expression-control choices.
+- **Test:** organize simulation outputs, assay hypotheses, and validation plans.
+- **Learn:** preserve decisions, failures, and experimental feedback as reusable
+  project memory.
+
+Zhuangzhou is therefore best described as:
+
+> An AI-native DBTL workbench for enzyme and pathway engineering.
+
+## What It Tries To Solve
 
 Synthetic biology projects often fail between the idea and the bench because the
 design evidence is scattered across incompatible layers:
@@ -21,8 +55,11 @@ design evidence is scattered across incompatible layers:
 - wet-lab design packages are manually assembled from notebooks, scripts, and
   fragmented database searches.
 
-Zhuangzhou aims to make these steps part of one traceable computational design
-loop for enzyme and pathway engineering.
+Zhuangzhou aims to turn these fragments into one traceable design loop. The user
+should not need to manually jump between literature search, sequence analysis,
+structure inspection, docking, MD, FBA, codon optimization, CRISPR design,
+plasmid-part selection, and report writing just to answer one engineering
+question.
 
 Representative questions it is designed to support:
 
@@ -34,6 +71,23 @@ Representative questions it is designed to support:
 - How should a protein sequence be codon-optimized for a production chassis?
 - What evidence package should be handed to the experimental team?
 
+## AI-Native DBTL Workflow
+
+Zhuangzhou treats DBTL as an executable workflow rather than a slide-deck
+framework.
+
+| DBTL phase | AI role | Deterministic tools |
+| --- | --- | --- |
+| Design | Decompose the biological goal, choose analyses, rank uncertainty | pathway search, FBA/FVA, protein context, mutation enrichment, docking, MD, QM |
+| Build | Translate designs into construct-level plans | promoter/RBS/Kozak selection, codon optimization, CRISPR guide design, integration strategy |
+| Test | Prepare validation hypotheses and measurable outputs | assay checklist, simulation metrics, report generation, result schema |
+| Learn | Preserve what worked, what failed, and why | project memory, execution history, knowledge context, next-round ranking |
+
+This makes Zhuangzhou closer to a scientific workflow agent than a question
+answering assistant. The AI layer is useful because it can decide which tools to
+call and how to interpret intermediate results, but the workflow stays grounded
+in inspectable outputs.
+
 ## System Scope
 
 Zhuangzhou is organized as a modular computational stack rather than a single
@@ -41,12 +95,39 @@ model wrapper.
 
 | Layer | Modules | Role |
 | --- | --- | --- |
-| Natural language control | `nlp`, `agents`, `commands`, `ui` | Optional REPL, routing, planning, specialist prompts, CLI |
+| AI control plane | `nlp`, `agents`, `commands`, `ui` | ReAct-style planning, tool routing, specialist prompts, CLI/REPL |
 | Protein and enzyme design | `mutation_enricher`, `mutagenesis`, `molecularconformer`, `enzyme_specificity` | Mutation annotation, structural context, conformer generation, enzyme specificity checks |
 | Molecular modeling | `smartdocking`, `gromacs_md`, `amber_md`, `CYPamber`, `nonstandard_res`, `qm_engine` | Docking, MD, CYP/heme workflows, non-standard residue handling, QM preflight and analysis |
 | Synthetic biology | `synbio`, `codon_opt`, `workflow_options` | Parts selection, CRISPR guide design, codon optimization, expression balance, design packaging |
 | Metabolic reasoning | `metakg`, `brain`, `huizi` | GEM/FBA bridge, GraphRAG/knowledge context, session-aware protein context |
 | Reporting and memory | `report`, `memory`, `workflow` | Structured reports, project memory, reusable workflow templates |
+
+## Agent Architecture
+
+Zhuangzhou is built around a separation between reasoning and execution.
+
+```text
+Natural-language request
+    |
+    v
+AI planner / router
+    |
+    v
+Domain skill graph
+    |
+    +-- pathway and FBA tools
+    +-- enzyme mutation and structure tools
+    +-- docking / MD / QM tools
+    +-- codon / CRISPR / parts tools
+    +-- report and memory tools
+    |
+    v
+Auditable design package
+```
+
+The system can be used without an LLM as a Python package, but the AI interface
+is intended to make multi-step design work more natural: a scientist states the
+biological objective, and the agent assembles the relevant computational path.
 
 ## Synthetic Biology Capabilities
 
@@ -60,6 +141,8 @@ and pathway engineering.
   search, and production-envelope style reasoning.
 - Pathway search and substrate/reaction lookup for connecting target products to
   feasible host interventions.
+- Early support for comparing chassis-level feasibility before committing to
+  construct design.
 
 ### Genetic Part Selection
 
@@ -67,6 +150,8 @@ and pathway engineering.
 - Expression-strength matching for balanced pathway assembly.
 - Separate bacterial and yeast part logic where expression control differs.
 - Design package generation for handing off a proposed construct strategy.
+- Intended direction: expression burden, toxicity, copy-number, and pathway
+  balance become first-class design constraints.
 
 ### CRISPR and Perturbation Design
 
@@ -88,11 +173,21 @@ and pathway engineering.
   heuristics.
 - CYP/heme-aware Amber and GROMACS support for metalloprotein engineering.
 
+### Design Handoff
+
+- Convert computational results into a concise design package.
+- Preserve assumptions, inputs, tool outputs, and open risks.
+- Support review before wet-lab execution rather than presenting AI suggestions
+  as final biological truth.
+
 ## Technical Highlights
 
-- **Deterministic skills first.** Tool outputs are computed by Python modules,
-  database APIs, simulation engines, or structured models, not invented as text.
-- **Pluggable LLM layer.** Claude, OpenAI-compatible APIs, DeepSeek-compatible
+- **AI-native but tool-grounded.** The LLM plans and coordinates; scientific
+  outputs are computed by Python modules, database APIs, simulation engines, or
+  structured models.
+- **DBTL memory direction.** The system is designed to keep design rationale,
+  execution history, and future test results connected across rounds.
+- **Pluggable model layer.** Claude, OpenAI-compatible APIs, DeepSeek-compatible
   endpoints, and local Ollama-style backends are treated as optional planners.
 - **Environment isolation.** Native tools, WSL tools, conda environments, and
   remote SSH compute can be configured independently.
@@ -162,6 +257,15 @@ zz-cli
 zz-chat
 ```
 
+An intended AI workflow looks like:
+
+```text
+zz-chat
+> Improve production of a target compound in yeast.
+> Compare pathway options, identify likely enzyme bottlenecks,
+> propose expression parts, and prepare a DBTL design package.
+```
+
 Python examples:
 
 ```python
@@ -198,17 +302,24 @@ enriched = enrich_mutations(
 )
 ```
 
-## Example DBTL Workflow
+## Example AI DBTL Workflow
 
-1. Define a target molecule and host chassis.
-2. Search candidate pathways and host reactions with MetaKG/FBA tools.
-3. Identify bottleneck enzymes and possible knockout or CRISPRi interventions.
-4. Retrieve protein sequence, structure, domains, and literature context.
-5. Generate mutation candidates and enrich them with structure and active-site
-   features.
-6. Run docking, MD, or QM checks for high-risk enzyme variants.
-7. Select expression parts and codon-optimize the final sequence.
-8. Export a design package and report for experimental validation.
+1. **Intent capture:** define target product, chassis, constraints, and success
+   metric.
+2. **Design planning:** let the AI router select pathway, enzyme, sequence,
+   structure, simulation, and parts-design tools.
+3. **Pathway reasoning:** search candidate reactions, run FBA/FVA, and identify
+   bottlenecks or host interventions.
+4. **Enzyme reasoning:** retrieve sequence/structure context, annotate domains,
+   and rank mutation candidates.
+5. **Molecular checks:** run docking, MD, or QM for high-risk variants when the
+   evidence requires it.
+6. **Build planning:** choose expression parts, codon-optimize sequences, and
+   draft CRISPR/knockout strategies.
+7. **Test planning:** define assays, expected readouts, failure modes, and data
+   fields to capture.
+8. **Learn setup:** export a report and preserve assumptions/results so the next
+   design round starts from evidence rather than memory loss.
 
 ## Current Status
 
@@ -226,13 +337,24 @@ Validated before public release:
 
 ## Roadmap
 
-- Soft DBTL loop with experiment-result ingestion and next-round design ranking.
+- AI DBTL loop with experiment-result ingestion and next-round design ranking.
 - Expanded chassis support, including Yarrowia lipolytica and Komagataella
   phaffii production workflows.
 - SaCas9 and broader CRISPR nuclease support.
 - Stronger CAI and expression-burden models for multi-gene pathways.
 - Public example notebooks with small, dependency-light demonstration datasets.
 - CI checks for privacy scanning, package build, and core regression tests.
+
+## Positioning Summary
+
+Zhuangzhou is the beginning of a specialized AI science product for synthetic
+biology. The aim is not to replace domain scientists, but to give them a
+scientific agent that can connect reasoning, tools, data, and reports across the
+DBTL cycle.
+
+Short version:
+
+> From biological intent to executable DBTL design.
 
 ## Repository Notes
 
