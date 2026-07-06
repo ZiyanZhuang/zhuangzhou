@@ -1,0 +1,12 @@
+{
+  "schema": "cypforge.audit_residue_map.v1",
+  "description": "Default expected residue mapping for 4EJI (Mode11) global audit Gate 1. Override via protonation manifest expected_final_residue_checks.",
+  "residues": {
+    "55": "HID",
+    "275": "GLU",
+    "299": "HID",
+    "386": "HID",
+    "410": "CYM",
+    "419": "GLH"
+  }
+}

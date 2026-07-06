@@ -80,7 +80,7 @@ zz-chat = "zhuangzhou.nlp.repl:main"
 Repository = "https://github.com/ZiyanZhuang/zhuangzhou"
 
 [tool.setuptools]
-package-dir = {"zhuangzhou" = "."}
+package-dir = {"zhuangzhou" = ".", "cypforge" = "cypforge", "cypforge_core" = "cypforge_core"}
 packages = [
     "zhuangzhou",
     "zhuangzhou.agents",
@@ -114,7 +114,23 @@ packages = [
     "zhuangzhou.utils",
     "zhuangzhou.workflow",
     "zhuangzhou.workflow_options",
+    "cypforge",
+    "cypforge.cys",
+    "cypforge.heme",
+    "cypforge_core",
+    "cypforge_core.orchestrator",
 ]
 
 [tool.setuptools.package-data]
-"zhuangzhou" = ["gromacs_md/templates/*.mdp", "nonstandard_res/params/*.itp", "molecularconformer/weights/*.txt"]
+"zhuangzhou" = [
+    "gromacs_md/templates/*.mdp",
+    "nonstandard_res/params/*.itp",
+    "molecularconformer/weights/*.txt",
+    "synbio/data/*.csv",
+]
+"cypforge" = [
+    "data/heme_params/**/*.json",
+    "data/heme_params/**/*.frcmod",
+    "data/heme_params/**/*.mol2",
+]
+"cypforge_core" = ["data/*.json"]

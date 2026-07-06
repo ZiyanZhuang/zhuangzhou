@@ -15,8 +15,17 @@ Quick start:
 
 from .parts import PartSelector, ECOLI_PROMOTERS, YEAST_PROMOTERS, ECOLI_RBS
 from .crispr import find_guides, design_hdr_template, design_crispri
+from .assembor import (
+    YeastPart,
+    load_yeast_parts,
+    query_yeast_parts,
+    select_yeast_expression_parts,
+    validate_yeast_parts,
+)
 
 __all__ = [
     "PartSelector", "ECOLI_PROMOTERS", "YEAST_PROMOTERS", "ECOLI_RBS",
     "find_guides", "design_hdr_template", "design_crispri",
+    "YeastPart", "load_yeast_parts", "query_yeast_parts",
+    "select_yeast_expression_parts", "validate_yeast_parts",
 ]

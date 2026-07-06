@@ -90,6 +90,73 @@ def synbio_promoter_select(
         return {"error": str(e), "hint": "Check organism parameter ('ecoli' or 'yeast')"}
 
 
+def synbio_yeast_parts_select(
+    promoter_bin: str = "strong",
+    terminator_bin: str = "standard",
+    require_sequence: bool = False,
+    n_candidates: int = 5,
+    output_dir: Optional[str] = None,
+) -> Dict:
+    """Select curated S. cerevisiae promoter/terminator candidates.
+
+    Uses the integrated Assembor-style six-column parts table curated from the
+    local promoter/terminator project.
+    """
+    try:
+        from zhuangzhou.synbio.assembor import select_yeast_expression_parts
+
+        result = select_yeast_expression_parts(
+            promoter_bin=promoter_bin,
+            terminator_bin=terminator_bin,
+            require_sequence=require_sequence,
+            n_candidates=n_candidates,
+        )
+        result["next_steps"] = ["synbio_expression_balance", "synbio_design_package"]
+        return result
+    except Exception as e:
+        return {"error": str(e), "hint": "Check promoter_bin/terminator_bin and curated yeast parts CSV"}
+
+
+def cypforge_capabilities(output_dir: Optional[str] = None) -> Dict:
+    """Report integrated CYPForge capabilities without running external tools."""
+    try:
+        from zhuangzhou.CYPamber.cypforge_bridge import cypforge_available
+
+        result = cypforge_available()
+        result["safe_mode"] = True
+        result["next_steps"] = ["cypforge_init_run"]
+        return result
+    except Exception as e:
+        return {"available": False, "error": str(e)}
+
+
+def cypforge_init_run(
+    run_name: str,
+    run_root: str,
+    raw_protein_heme_pdb: str,
+    ligand_template_sdf: str = "",
+    heme_state: str = "IC6",
+    ligand_resname: str = "LIG",
+    formal_charge: int = 0,
+    output_dir: Optional[str] = None,
+) -> Dict:
+    """Initialize a CYPForge run manifest without executing Amber/WSL stages."""
+    try:
+        from zhuangzhou.CYPamber.cypforge_bridge import initialize_cypforge_run
+
+        return initialize_cypforge_run(
+            run_name=run_name,
+            run_root=run_root,
+            raw_protein_heme_pdb=raw_protein_heme_pdb,
+            ligand_template_sdf=ligand_template_sdf,
+            heme_state=heme_state,
+            ligand_resname=ligand_resname,
+            formal_charge=formal_charge,
+        )
+    except Exception as e:
+        return {"error": str(e), "hint": "Check input paths and CYPForge core availability"}
+
+
 def synbio_expression_balance(
     enzyme_names: Optional[List[str]] = None,
     target_fluxes: Optional[List[float]] = None,
@@ -737,6 +804,27 @@ def register(registry):
             estimated_time="~1s",
         ),
         Skill(
+            name="synbio_yeast_parts_select",
+            description="Select curated S. cerevisiae promoter and terminator candidates from the Assembor parts table",
+            category="synbio",
+            fn=synbio_yeast_parts_select,
+            inputs=[
+                S("promoter_bin", "string", "Promoter strength bin",
+                  required=False, default="strong",
+                  choices=["very_strong", "strong", "medium_high", "medium", "low", "inducible", "repressible", "unknown"]),
+                S("terminator_bin", "string", "Terminator strength bin",
+                  required=False, default="standard",
+                  choices=["high", "standard", "medium", "weak", "short_synthetic", "unknown"]),
+                S("require_sequence", "bool", "Return only parts with curated sequence", required=False, default=False),
+                S("n_candidates", "int", "Number of promoter/terminator candidates", required=False, default=5),
+            ],
+            outputs=[S("promoters", "list", "Promoter candidates"), S("terminators", "list", "Terminator candidates")],
+            requires_gpu=False, requires_wsl=False, requires_network=False,
+            remote_capable=False, remote_preferred=False,
+            depends_on=[], output_type="analysis", risk_level="low",
+            estimated_time="~1s",
+        ),
+        Skill(
             name="synbio_expression_balance",
             description="Balance multi-gene pathway expression with promoter+RBS selection",
             category="synbio",
@@ -754,6 +842,39 @@ def register(registry):
             requires_gpu=False, requires_wsl=False, requires_network=False,
             remote_capable=False, remote_preferred=False,
             depends_on=["metakg_bottleneck"], output_type="analysis", risk_level="low",
+            estimated_time="~1s",
+        ),
+        Skill(
+            name="cypforge_capabilities",
+            description="Inspect integrated CYPForge CYP+heme+ligand workflow stages without running external tools",
+            category="simulation",
+            fn=cypforge_capabilities,
+            inputs=[],
+            outputs=[S("modules", "list", "CYPForge workflow modules")],
+            requires_gpu=False, requires_wsl=False, requires_network=False,
+            remote_capable=False, remote_preferred=False,
+            depends_on=[], output_type="analysis", risk_level="low",
+            estimated_time="~1s",
+        ),
+        Skill(
+            name="cypforge_init_run",
+            description="Initialize a CYPForge run manifest for CYP/heme/ligand Amber preparation without executing MD/QM",
+            category="simulation",
+            fn=cypforge_init_run,
+            inputs=[
+                S("run_name", "string", "Run identifier", required=True),
+                S("run_root", "path", "Output run directory", required=True, is_output_path=True),
+                S("raw_protein_heme_pdb", "path", "Input CYP protein+heme PDB", required=True),
+                S("ligand_template_sdf", "path", "Optional ligand SDF template", required=False),
+                S("heme_state", "string", "Target heme state",
+                  required=False, default="IC6", choices=["IC6", "DIOXY", "CPDI", "CUSTOM"]),
+                S("ligand_resname", "string", "Ligand residue name", required=False, default="LIG"),
+                S("formal_charge", "int", "Ligand formal charge", required=False, default=0),
+            ],
+            outputs=[S("manifest_path", "path", "Initialized run manifest")],
+            requires_gpu=False, requires_wsl=False, requires_network=False,
+            remote_capable=False, remote_preferred=False,
+            depends_on=["cypforge_capabilities"], output_type="report", risk_level="medium",
             estimated_time="~1s",
         ),
         Skill(

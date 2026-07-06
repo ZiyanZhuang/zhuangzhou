@@ -1,0 +1,77 @@
+{
+  "schema": "cypforge.heme_parameter_provenance.v1",
+  "primary_reference": {
+    "title": "Quantum mechanically derived AMBER-compatible heme parameters for various states of the cytochrome P450 catalytic cycle",
+    "authors": "Shahrokh K, Orendt A, Yost GS, Cheatham TE III",
+    "journal": "Journal of Computational Chemistry",
+    "year": 2012,
+    "volume": 33,
+    "issue": 2,
+    "pages": "119-133",
+    "doi": "10.1002/jcc.21922",
+    "pmid": "21997754",
+    "pmcid": "PMC3242737"
+  },
+  "method_claim_from_reference": {
+    "geometry_optimization": "B3LYP/LACVP as reported in the article",
+    "charge_derivation": "RESP charges generated with RED-III as reported in the article",
+    "model_scope": "F-HM and T-HM active-site models, not a full CYP protein",
+    "force_field_target": "AMBER-compatible heme parameters"
+  },
+  "local_parameter_sets": {
+    "IC6": {
+      "frcmod": "IC6/IC6.frcmod",
+      "heme_mol2": "IC6/HEM.mol2",
+      "cyp_mol2": "IC6/CYP.mol2",
+      "local_label": "Ferric penta-coordinate high-spin",
+      "key_local_values": {
+        "fe_charge": 0.2492,
+        "heme_charge": -1.5976,
+        "cyp_patch_charge": -0.4024,
+        "fe_SH_bond": "fe-SH 80.000 2.660"
+      }
+    },
+    "DIOXY": {
+      "frcmod": "DIOXY/DIOXY.frcmod",
+      "heme_mol2": "DIOXY/HEM.mol2",
+      "cyp_mol2": "DIOXY/CYP.mol2",
+      "local_label": "Dioxygen-bound state",
+      "key_local_values": {
+        "fe_charge": 0.0289,
+        "heme_charge": -2.5336,
+        "cyp_patch_charge": -0.4664,
+        "fe_SH_bond": "fe-SH 80.00 2.527",
+        "fe_oa_bond": "fe-oa 194.00 1.918",
+        "oa_ob_bond": "oa-ob 372.00 1.292"
+      }
+    },
+    "CPDI": {
+      "frcmod": "CPDI/CPDI.frcmod",
+      "heme_mol2": "CPDI/HEM.mol2",
+      "cyp_mol2": "CPDI/CYP.mol2",
+      "local_label": "Compound I",
+      "key_local_values": {
+        "fe_charge": 0.262,
+        "heme_charge": -1.6141,
+        "cyp_patch_charge": -0.3859,
+        "fe_SH_bond": "fe-SH 39.00 2.565",
+        "fe_oa_bond": "fe-oa 572.00 1.639"
+      }
+    }
+  },
+  "local_consistency_check": {
+    "status": "partial",
+    "checked": [
+      "reference DOI, PMID, PMCID, journal, volume, issue, pages",
+      "article method summary: B3LYP/LACVP and RED-III RESP",
+      "local frcmod headers cite Shahrokh, Orendt, Yost, Cheatham",
+      "local mol2 charge sums and Fe/O/S key charges",
+      "local Fe-S, Fe-O, and O-O key bonded parameters"
+    ],
+    "not_checked": [
+      "byte-for-byte comparison against the official PMC supplementary DOC because the direct download is protected by an NCBI CloudPMC proof-of-work challenge in this environment",
+      "chemical correctness, oxidation-state correctness, spin-state correctness, or transferability to every target protein"
+    ]
+  },
+  "limitation": "This provenance records source attribution and local file consistency checks. It does not validate chemical correctness."
+}

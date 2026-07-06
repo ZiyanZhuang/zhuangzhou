@@ -97,8 +97,8 @@ model wrapper.
 | --- | --- | --- |
 | AI control plane | `nlp`, `agents`, `commands`, `ui` | ReAct-style planning, tool routing, specialist prompts, CLI/REPL |
 | Protein and enzyme design | `mutation_enricher`, `mutagenesis`, `molecularconformer`, `enzyme_specificity` | Mutation annotation, structural context, conformer generation, enzyme specificity checks |
-| Molecular modeling | `smartdocking`, `gromacs_md`, `amber_md`, `CYPamber`, `nonstandard_res`, `qm_engine` | Docking, MD, CYP/heme workflows, non-standard residue handling, QM preflight and analysis |
-| Synthetic biology | `synbio`, `codon_opt`, `workflow_options` | Parts selection, CRISPR guide design, codon optimization, expression balance, design packaging |
+| Molecular modeling | `smartdocking`, `gromacs_md`, `amber_md`, `CYPamber`, `cypforge`, `cypforge_core`, `nonstandard_res`, `qm_engine` | Docking, MD, CYP/heme workflows, CYPForge heme-ligand preparation gates, non-standard residue handling, QM preflight and analysis |
+| Synthetic biology | `synbio`, `codon_opt`, `workflow_options` | Parts selection, Assembor yeast promoter/terminator candidates, CRISPR guide design, codon optimization, expression balance, design packaging |
 | Metabolic reasoning | `metakg`, `brain`, `huizi` | GEM/FBA bridge, GraphRAG/knowledge context, session-aware protein context |
 | Reporting and memory | `report`, `memory`, `workflow` | Structured reports, project memory, reusable workflow templates |
 
@@ -147,6 +147,8 @@ and pathway engineering.
 ### Genetic Part Selection
 
 - Curated promoter, RBS/Kozak, terminator, and integration-site libraries.
+- Integrated Assembor-style S. cerevisiae promoter/terminator table with
+  `name,type,bin,sequence,doi,note` schema.
 - Expression-strength matching for balanced pathway assembly.
 - Separate bacterial and yeast part logic where expression control differs.
 - Design package generation for handing off a proposed construct strategy.
@@ -172,6 +174,10 @@ and pathway engineering.
 - Docking, MD, and QM modules for ranking mutations beyond sequence-only
   heuristics.
 - CYP/heme-aware Amber and GROMACS support for metalloprotein engineering.
+- Integrated CYPForge/CYPForge Core helpers for CYP + heme + ligand Amber
+  preparation manifests, heme-state handling, and run-readiness gates. The
+  repository includes the lightweight core source and heme parameter templates,
+  not large local preproduction trajectories or private run artifacts.
 
 ### Design Handoff
 
@@ -281,6 +287,18 @@ print(parts)
 ```
 
 ```python
+from zhuangzhou.synbio.assembor import select_yeast_expression_parts
+
+design_parts = select_yeast_expression_parts(
+    promoter_bin="strong",
+    terminator_bin="standard",
+    require_sequence=False,
+)
+print(design_parts["promoters"])
+print(design_parts["terminators"])
+```
+
+```python
 from zhuangzhou.codon_opt.optimizer import optimize_codon
 
 result = optimize_codon(
@@ -300,6 +318,13 @@ enriched = enrich_mutations(
     active_site={49, 57, 71},
     catalytic={57},
 )
+```
+
+```python
+from zhuangzhou.CYPamber.cypforge_bridge import cypforge_available
+
+status = cypforge_available()
+print(status["available"], status.get("module_count"))
 ```
 
 ## Example AI DBTL Workflow

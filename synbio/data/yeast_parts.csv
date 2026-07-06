@@ -1,0 +1,23 @@
+name,type,bin,sequence,doi,note
+PTEF1,promoter,very_strong,,10.1021/sb500366v,common strong promoter; YTK part; sequence missing; boundary requires literature support
+PTDH3,promoter,very_strong,,10.1021/sb500366v,common strong promoter; YTK part; sequence missing; boundary requires literature support
+PPGK1,promoter,strong,,10.1021/sb500366v,common strong promoter; condition-dependent reports exist; sequence missing; boundary requires literature support
+PTEF2,promoter,strong,,10.1021/sb500366v,strong promoter; YTK part; sequence missing; boundary requires literature support
+PCCW12,promoter,strong,,10.1021/sb500366v,strong promoter; growth-phase sensitivity reported; sequence missing; boundary requires literature support
+PADH1,promoter,medium,,unknown,common constitutive promoter; DOI not curated; sequence missing; boundary requires literature support
+PCYC1,promoter,low,,unknown,weak/common promoter; DOI not curated; sequence missing; boundary requires literature support
+tADH1,terminator,standard,GCGAATTTCTTATGATTTATGATTTTTATTATTAAATAAGTTATAAAAAAAATAAGTGTATACAAATTTTAAAGTGACTCTTAGGTTTTAAAACGAAAATTCTTATTCTTGAGTAACTCTTTCCTGTAGGTCAGGTTGCTTTCTCAGGTATAGCATGAGGTCGCTCTTATTGACCACACCTCTACCGGCATGCCGAGCAAATGCCTGCAAATCGCTCCCCATTTC,10.1021/sb500366v,YTK ScADH1 terminator; Addgene pYTK053/pYTK063 GenBank; 225 bp
+tCYC1,terminator,standard,,unknown,common terminator; sequence missing; DOI not curated
+tPGK1,terminator,high,ATTGAATTGAATTGAAATCGATAGATCAATTTTTTTCTTTTCTCTTTCCCCATCCTTTACGCTAAAATAATAGTTTATTTTATTTTTTGAATATTTTTTATTTATATACGTATATATAGACTATTATTTATCTTTTAATGATTATTAAGATTTTTATTAAAAAAAAATTCGCTCCTCTTTTAATGCCTTTATGCAGTTTTTTTTTCCCATTCGATATTTCTATGT,10.1021/sb500366v,YTK ScPGK1 terminator; Addgene pYTK054/pYTK064 GenBank; 225 bp; activity evidence 10.1021/sb300116y
+P3xC-TEF1,promoter,very_strong,,10.1186/s12934-018-0899-6,synthetic hybrid promoter; UASCLB(3X)-PTEF; length 1147 bp reported; sequence missing
+TEF1_mutant_6,promoter,very_strong,,10.1128/AEM.00530-06,engineered TEF1 promoter mutant; higher than WT PTEF1 reported; sequence missing
+TEF1_mutant_10,promoter,medium_high,,10.1128/AEM.00530-06,engineered TEF1 promoter mutant; 0.78x WT PTEF1 reported; sequence missing
+Redden_core_1,promoter,unknown,,10.1038/ncomms8810,minimal synthetic core promoter element; activity depends on UAS context; sequence missing
+Redden_core_2,promoter,unknown,,10.1038/ncomms8810,minimal synthetic core promoter element; activity depends on UAS context; sequence missing
+Redden_core_3,promoter,unknown,,10.1038/ncomms8810,minimal synthetic core promoter element; activity depends on UAS context; sequence missing
+Redden_core_4,promoter,unknown,,10.1038/ncomms8810,minimal synthetic core promoter element; activity depends on UAS context; sequence missing
+Redden_core_5,promoter,unknown,,10.1038/ncomms8810,minimal synthetic core promoter element; activity depends on UAS context; sequence missing
+Redden_core_6,promoter,unknown,,10.1038/ncomms8810,minimal synthetic core promoter element; activity depends on UAS context; sequence missing
+Redden_core_7,promoter,unknown,,10.1038/ncomms8810,minimal synthetic core promoter element; activity depends on UAS context; sequence missing
+Redden_core_8,promoter,unknown,,10.1038/ncomms8810,minimal synthetic core promoter element; activity depends on UAS context; sequence missing
+Redden_core_9,promoter,unknown,,10.1038/ncomms8810,minimal synthetic core promoter element; activity depends on UAS context; sequence missing
