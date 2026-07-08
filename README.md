@@ -1,5 +1,13 @@
 # Zhuangzhou
 
+**English** | [简体中文](README.zh-CN.md)
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-3F7A63.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3F7A63.svg)](#installation)
+
+**From biological intent to executable DBTL design.**
+[Project showcase](docs/index.html) · [Wiki](../../wiki) · [Issues](../../issues)
+
 Zhuangzhou is an AI Scientist Workbench for synthetic biology, enzyme
 engineering, and computational DBTL design. It turns a biological intent such as
 "improve this enzyme", "build this pathway", or "prepare this construct for a
@@ -14,6 +22,22 @@ The principle is simple: the AI proposes and coordinates; Zhuangzhou computes,
 checks, records, and packages. Scientific outputs should come from explicit
 algorithms, structured data, database calls, and reproducible tool execution, not
 from unsupported text generation.
+
+## Table of Contents
+
+- [Product Positioning](#product-positioning)
+- [What It Tries To Solve](#what-it-tries-to-solve)
+- [AI-Native DBTL Workflow](#ai-native-dbtl-workflow)
+- [System Scope](#system-scope)
+- [Agent Architecture](#agent-architecture)
+- [Synthetic Biology Capabilities](#synthetic-biology-capabilities)
+- [Technical Highlights](#technical-highlights)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Current Status](#current-status)
+- [Roadmap](#roadmap)
+- [Positioning Summary](#positioning-summary)
+- [License](#license)
 
 ## Product Positioning
 
@@ -133,72 +157,24 @@ biological objective, and the agent assembles the relevant computational path.
 ## Synthetic Biology Capabilities
 
 Zhuangzhou currently focuses on practical early-stage design support for enzyme
-and pathway engineering.
+and pathway engineering. Full detail for each area is in the
+[Wiki: Capabilities](../../wiki/Capabilities) page.
 
-### Pathway and Host Design
-
-- Genome-scale model bridge for E. coli and S. cerevisiae workflows.
-- Flux balance analysis, flux variability analysis, gene essentiality, bottleneck
-  search, and production-envelope style reasoning.
-- Pathway search and substrate/reaction lookup for connecting target products to
-  feasible host interventions.
-- Early support for comparing chassis-level feasibility before committing to
-  construct design.
-
-### Genetic Part Selection
-
-- Curated promoter, RBS/Kozak, terminator, and integration-site libraries.
-- Integrated Assembor-style S. cerevisiae promoter/terminator table with
-  `name,type,bin,sequence,doi,note` schema.
-- Expression-strength matching for balanced pathway assembly.
-- Separate bacterial and yeast part logic where expression control differs.
-- Design package generation for handing off a proposed construct strategy.
-- Intended direction: expression burden, toxicity, copy-number, and pathway
-  balance become first-class design constraints.
-
-### CRISPR and Perturbation Design
-
-- SpCas9 guide search with NGG PAM handling.
-- Knockout and CRISPRi-oriented design helpers.
-- HDR template design utilities for edit planning.
-
-### Codon Optimization
-
-- Komagataella phaffii-oriented codon optimization engine.
-- DNAchisel backend when installed, with a frequency fallback.
-- GC-content constraints, translation enforcement, and avoid-pattern hooks.
-
-### Genomics Computation
-
-- VCF and two-column population-map input-contract checks before
-  population-level analysis.
-- Auditable Linux command plans for nucleotide diversity, Tajima's D,
-  observed heterozygosity, pairwise Fst, PCA, ADMIXTURE, TreeMix, IQ-TREE, and
-  VCF2Dis.
-- Explicit QC defaults for MAF, missingness, LD pruning, window size, and
-  runtime version capture.
-- Designed for DBTL feedback loops where strain panels, evolved populations, or
-  segregating libraries need reproducible population-genetic evidence before the
-  next design round.
-
-### Enzyme Engineering
-
-- Mutation enrichment with secondary structure, RSA, active-site distance,
-  channel proximity, domain annotations, and literature evidence.
-- Docking, MD, and QM modules for ranking mutations beyond sequence-only
-  heuristics.
-- CYP/heme-aware Amber and GROMACS support for metalloprotein engineering.
-- Integrated CYPForge/CYPForge Core helpers for CYP + heme + ligand Amber
-  preparation manifests, heme-state handling, and run-readiness gates. The
-  repository includes the lightweight core source and heme parameter templates,
-  not large local preproduction trajectories or private run artifacts.
-
-### Design Handoff
-
-- Convert computational results into a concise design package.
-- Preserve assumptions, inputs, tool outputs, and open risks.
-- Support review before wet-lab execution rather than presenting AI suggestions
-  as final biological truth.
+- **Pathway & Host Design** — genome-scale model bridge for E. coli and
+  S. cerevisiae, flux balance/variability analysis, gene essentiality, and
+  pathway search connecting target products to feasible host interventions.
+- **Genetic Part Selection** — curated promoter/RBS/Kozak/terminator libraries,
+  an Assembor-style S. cerevisiae promoter/terminator table, and
+  expression-strength matching for balanced assembly.
+- **CRISPR & Perturbation Design** — SpCas9 guide search with NGG PAM handling,
+  knockout/CRISPRi helpers, and HDR template design utilities.
+- **Codon Optimization** — a Komagataella phaffii-oriented engine with a
+  DNAchisel backend when installed, GC-content and avoid-pattern constraints.
+- **Genomics Computation** — VCF/population-map input checks and auditable
+  command plans for diversity, Fst, PCA, ADMIXTURE, TreeMix, and IQ-TREE.
+- **Enzyme Engineering** — mutation enrichment (structure, RSA, active-site
+  distance, literature evidence), docking/MD/QM ranking, and CYP/heme-aware
+  Amber and GROMACS support via CYPForge.
 
 ## Technical Highlights
 
@@ -242,32 +218,9 @@ python -m pip install -e ".[all]"
 ```
 
 Some workflows require external scientific software such as GROMACS, AmberTools,
-PyMOL, ChimeraX, OpenBabel, AutoDock Vina, RDKit, or WSL-side tools. These are
-configured through environment variables or local config files, not committed
-repository paths.
-
-## Configuration
-
-Common environment variables:
-
-| Variable | Purpose |
-| --- | --- |
-| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY` | Optional LLM backends |
-| `GMX_BIN`, `GMXLIB` | GROMACS executable and topology directory |
-| `VINA_BIN` | AutoDock Vina executable |
-| `PYMOL_PYTHON`, `CHIMERAX_BIN` | Visualization backends |
-| `SOBTOP_DIR`, `OBABEL_EXE`, `FFMPEG_BIN` | Ligand preparation and media tools |
-| `ZHUANGZHOU_GRAPHRAG_ROOT` | Optional local GraphRAG data root |
-| `BETATHINK_KG_ROOT` | Optional local knowledge-graph root |
-
-Example config files are provided, for example:
-
-```text
-envs/ssh_compute.ini.example
-gromacs_md/gromacs_md.ini.example
-```
-
-Do not commit real SSH, API, host, or private data files.
+PyMOL, ChimeraX, OpenBabel, AutoDock Vina, RDKit, or WSL-side tools, configured
+through environment variables or local config files. Full variable reference:
+[Wiki: Installation & Configuration](../../wiki/Installation-and-Configuration).
 
 ## Usage
 
@@ -289,7 +242,7 @@ zz-chat
 > propose expression parts, and prepare a DBTL design package.
 ```
 
-Python examples:
+Python example:
 
 ```python
 from zhuangzhou.synbio.parts import PartSelector
@@ -303,95 +256,16 @@ parts = PartSelector.select_promoter(
 print(parts)
 ```
 
-```python
-from zhuangzhou.synbio.assembor import select_yeast_expression_parts
-
-design_parts = select_yeast_expression_parts(
-    promoter_bin="strong",
-    terminator_bin="standard",
-    require_sequence=False,
-)
-print(design_parts["promoters"])
-print(design_parts["terminators"])
-```
-
-```python
-from zhuangzhou.codon_opt.optimizer import optimize_codon
-
-result = optimize_codon(
-    protein_seq="MSTNPKPQRKTKRNTNRRPQDVKFPGG",
-    backend="frequency",
-)
-print(result["dna_sequence"])
-```
-
-```python
-from zhuangzhou.mutation_enricher import enrich_mutations
-
-enriched = enrich_mutations(
-    mutations=[{"position": 57, "from": "H", "to": "A"}],
-    pdb_path="protein.pdb",
-    uniprot_id="P00000",
-    active_site={49, 57, 71},
-    catalytic={57},
-)
-```
-
-```python
-from zhuangzhou.CYPamber.cypforge_bridge import cypforge_available
-
-status = cypforge_available()
-print(status["available"], status.get("module_count"))
-```
-
-```python
-from zhuangzhou.genomics import build_popgen_workflow
-
-plan = build_popgen_workflow(
-    analyses=["diversity", "fst", "pca", "admixture"],
-    vcf="cohort.vcf.gz",
-    popmap="pop_map.txt",
-    workdir="popgen_work",
-)
-print(plan["blocks"][0]["commands"])
-print(plan["method_note"])
-```
-
-## Example AI DBTL Workflow
-
-1. **Intent capture:** define target product, chassis, constraints, and success
-   metric.
-2. **Design planning:** let the AI router select pathway, enzyme, sequence,
-   structure, simulation, and parts-design tools.
-3. **Pathway reasoning:** search candidate reactions, run FBA/FVA, and identify
-   bottlenecks or host interventions.
-4. **Enzyme reasoning:** retrieve sequence/structure context, annotate domains,
-   and rank mutation candidates.
-5. **Molecular checks:** run docking, MD, or QM for high-risk variants when the
-   evidence requires it.
-6. **Build planning:** choose expression parts, codon-optimize sequences, and
-   draft CRISPR/knockout strategies.
-7. **Test planning:** define assays, expected readouts, failure modes, and data
-   fields to capture.
-8. **Learn from omics:** validate VCF/sample-map inputs, plan diversity,
-   structure, and ancestry analyses, and store the resulting evidence for the
-   next design cycle.
-9. **Learn setup:** export a report and preserve assumptions/results so the next
-   design round starts from evidence rather than memory loss.
+More examples (Assembor yeast parts, codon optimization, mutation enrichment,
+CYPForge bridge, genomics workflows): [Wiki: CLI & Usage](../../wiki/CLI-and-Usage).
 
 ## Current Status
 
 Zhuangzhou is a research engineering project. Many modules are usable as Python
 libraries today, while full end-to-end workflows depend on locally installed
-scientific software and configured data resources.
-
-Validated before public release:
-
-- local source compile pass for project modules;
-- targeted regression tests for CLI startup, tool fallback, and parallel skill
-  execution;
-- source distribution audit excluding secrets, caches, logs, storage exports,
-  and large model checkpoints.
+scientific software and configured data resources. See
+[Wiki: Example Workflow & Roadmap](../../wiki/Example-Workflow-and-Roadmap) for
+the full 9-step example workflow and pre-release validation notes.
 
 ## Roadmap
 
