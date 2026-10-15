@@ -102,7 +102,10 @@ passed
 指向错误目标；现从执行器保存的真实待确认技能和参数生成面板及命令，前台/后台两条
 路径均通过，仍需用户显式确认。
 初轮独立隐私检查：12 文件严格 UTF-8 / Python 3.10 语法通过，516 新增行无有效
-私有路径、凭证或乱码命中；补充修复的复核和远端 CI 状态将在发布前记录。
+私有路径、凭证或乱码命中。两位审查者随后批准代码 `8f08966`，各自运行相关回归
+**77 passed**；补充修复再次独立通过隐私、严格 UTF-8 和 Python 3.10 语法检查。
+全工程变更的 58 文件严格 UTF-8、297 个第一方 Python 语法检查通过；扫描没有读取
+凭据源或忽略目录。
 
 ## 5. 有界离线并发回归与机器人测试边界
 
@@ -121,3 +124,17 @@ python -m pytest -q tests/test_parallel_failures.py -k repeated_saturation --dur
 这是执行基础设施的离线压力回归，不是吞吐优化或真实模型性能基准。
 用户希望同时测试 ChatGPT 产品里的机器人，但尚未提供具体链接或可访问 API；
 该真实入口测试未开始，不能用上述 fixture 结果代替。
+
+## 6. 远端验证
+
+[PR #2](https://github.com/ZiyanZhuang/zhuangzhou/pull/2) 的代码提交
+`8f08966af173ff405e5b03ed653a44230e82dd66` 已通过四项远端检查：
+
+| 事件 | Ubuntu / Python 3.10 | Windows / Python 3.12 |
+| --- | --- | --- |
+| [Push run](https://github.com/ZiyanZhuang/zhuangzhou/actions/runs/38686590167) | success | success |
+| [PR run](https://github.com/ZiyanZhuang/zhuangzhou/actions/runs/38686604941) | success | success |
+
+通过 `gh pr checks 2 --json name,state,link` 实际核验。各 job 包含完整离线测试、
+Wheel 安装验证、关键 Ruff 和 CLI smoke。随后提交仅追加验证记录；合并前还需
+针对最终 PR SHA 核验全部检查，不能用上述代码提交的成功代替最终 head 状态。
