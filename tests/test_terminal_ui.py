@@ -39,6 +39,21 @@ def test_banner_metadata_never_splits_labels_from_values(display, width):
         assert line.split(label, 1)[1].strip(), f'{width}-column layout orphaned {label}'
 
 
+@pytest.mark.parametrize('width', [60, 80, 100, 120])
+def test_banner_preserves_authors_and_full_supervisor_affiliation(display, width):
+    display.width = width
+    ui.ZZInterface.render_logo()
+    text = display.export_text()
+    assert 'Academic supervisors' in text
+    assert 'Delvin Ce Zhang · University of Sheffield' in text
+    assert 'School of Computer Science' in text
+    assert 'Guang-Rong Zhao · Tianjin University' in text
+    assert 'School of Synthetic Biology and Biomanufacturing' in text
+    normalized = ' '.join(text.split())
+    for name in ('Ziyan Zhuang', 'Qianyu Zhao', 'Zifan Zhao', 'Shengfei Wang'):
+        assert name in normalized
+
+
 @pytest.mark.parametrize('exception,expected', [(ValueError, '✗'), (KeyboardInterrupt, '◇')])
 def test_monitor_exception_never_displays_success(display, exception, expected):
     monitor = ui.ZZStatus()

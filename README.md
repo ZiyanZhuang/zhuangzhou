@@ -211,6 +211,13 @@ experimental-result ingestion for the next design round. Cross-scale enzyme and
 metabolic optimization remains a development direction; it is not a validated
 general-purpose design service.
 
+## Academic supervisors
+
+| Name | Affiliation |
+| --- | --- |
+| Delvin Ce Zhang | University of Sheffield · School of Computer Science |
+| Guang-Rong Zhao | Tianjin University · School of Synthetic Biology and Biomanufacturing |
+
 ## Project links
 
 [Project page](docs/index.html) · [Wiki](../../wiki) ·

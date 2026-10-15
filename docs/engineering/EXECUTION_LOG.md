@@ -292,3 +292,26 @@ must be identified separately from deterministic tests and mocks.
   no document overflow at the observed viewport. Preview CSS approximates GitHub.
 - Relevant package/UI regression: **31 passed in 3.18s**. Remote CI and independent
   publication review follow before direct main delivery; no branch is created.
+
+## 2026-10-15 — Academic supervisor attribution
+
+- Added a separate supervisor section to both READMEs and the shared terminal
+  startup banner. The project relationship is supplied by the user; it is not
+  inferred from university staff pages. Existing author credits are preserved.
+- User confirmed **Delvin Ce Zhang**, matching the
+  [Sheffield staff page](https://sheffield.ac.uk/cs/people/academic/delvin-ce-zhang).
+  The Tianjin affiliation uses the school's published English name,
+  [School of Synthetic Biology and Biomanufacturing](https://synbm.tju.edu.cn/xygk/xyjj.htm).
+  **Guang-Rong Zhao** retains the user's spelling. No academic titles or university
+  Logos were added.
+- Four new rendering cases first failed because the supervisor section was
+  absent, then passed after the shared-banner change. Widths 60/80/100/120 retain
+  both full names and school names; existing author-name checks normalize ordinary
+  terminal whitespace. Related UI and wheel-installation checks: **35 passed**.
+- Regenerated the selected terminal SVG/PNG from the real Rich components and
+  visually inspected the production preview and 60-column rendering. The updated
+  PNG is 1920 x 1423. Original `zhuangzhou.png` remains byte-for-byte unchanged.
+  The preview uses a neutral workspace path and makes no model or simulation calls.
+- Full offline suite: **246 passed, 5 skipped, 13 existing warnings in 7.61s**.
+  Critical Ruff, both README reference/anchor/UTF-8 checks, both bundled Python
+  examples and `git diff --check` pass. Publication checks follow separately.

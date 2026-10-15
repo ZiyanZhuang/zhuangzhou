@@ -811,6 +811,13 @@ class ZZInterface:
             )
         )
 
+        console.print(Text("\n  Academic supervisors", style=ZZTheme.DIM))
+        for name, university, school in (
+            ("Delvin Ce Zhang", "University of Sheffield", "School of Computer Science"),
+            ("Guang-Rong Zhao", "Tianjin University", "School of Synthetic Biology and Biomanufacturing"),
+        ):
+            console.print(Text(f"  {name} · {university}\n    {school}", style=author_style))
+
         # Thin separator
         console.print(Text("  " + "─" * min(60, max(0, console.width - 2)), style="dim"))
         console.print("")

@@ -137,4 +137,20 @@ python -m pytest -q tests/test_parallel_failures.py -k repeated_saturation --dur
 
 通过 `gh pr checks 2 --json name,state,link` 实际核验。各 job 包含完整离线测试、
 Wheel 安装验证、关键 Ruff 和 CLI smoke。随后提交仅追加验证记录；合并前还需
-针对最终 PR SHA 核验全部检查，不能用上述代码提交的成功代替最终 head 状态。
+  针对最终 PR SHA 核验全部检查，不能用上述代码提交的成功代替最终 head 状态。
+
+## 7. 指导教师署名
+
+启动界面在原作者信息下增加独立的 `Academic supervisors` 区块：
+
+- Delvin Ce Zhang — University of Sheffield / School of Computer Science。
+- Guang-Rong Zhao — Tianjin University / School of Synthetic Biology and Biomanufacturing。
+
+用户确认采用 Sheffield 官网的 Delvin 拼写；指导关系由用户提供。中英文 README
+在项目链接之前分别列出指导教师表格，终端预览同步更新，原插图保持不变。
+没有增加新 Logo、头衔或背书措辞。
+
+实际 Rich 渲染在 60/80/100/120 列均通过新增的署名完整性回归；生产预览和
+60 列预览已目视检查，姓名与完整学院名称没有省略。UI 与 Wheel 相关检查
+35 passed；全套离线检查 246 passed / 5 skipped / 13 existing warnings。
+这次验证没有调用真实模型或科学软件。
