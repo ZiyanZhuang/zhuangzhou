@@ -2,6 +2,7 @@
 
 import os
 from .registry import Skill, SkillParam, SkillRegistry
+from .results import result_error
 
 
 def vina_docking(protein_pdb: str, ligand_sdf: str,
@@ -14,6 +15,9 @@ def vina_docking(protein_pdb: str, ligand_sdf: str,
 def smart_docking(protein_query: str, ligand_query: str,
                   output_dir: str = None, run_vina: bool = True,
                   run_plip: bool = True, config: dict = None, **kw) -> dict:
+    if not run_vina:
+        return {'error': 'Preparation-only smart_docking is not implemented; no docking was started',
+                'hint': 'Use explicit preparation skills, or set run_vina=True'}
     import re as _re
 
     # Type safety: ensure string input
@@ -93,7 +97,19 @@ def smart_docking(protein_query: str, ligand_query: str,
                     'hint': f'Original query was: "{ligand_query}". Check compound name or generate SDF manually.'}
 
     from zhuangzhou.tools import run_smart_docking
-    return run_smart_docking(pdb_file, ligand_sdf=ligand_sdf, output_dir=output_dir, config=config)
+    result = run_smart_docking(pdb_file, ligand_sdf=ligand_sdf, output_dir=output_dir, config=config,
+                              center=kw.get('center'), box_size=kw.get('box_size'))
+    if result_error(result) or not run_plip:
+        return result
+    complex_pdb = result.get('complex_pdb')
+    if not complex_pdb or not os.path.isfile(complex_pdb):
+        return {**result, 'success': False, 'error': 'Docking completed without a readable docked complex for PLIP'}
+    from zhuangzhou.tools import run_plip_analysis
+    plip = run_plip_analysis(complex_pdb, config=config)
+    result = {**result, 'plip': plip}
+    if result_error(plip):
+        return {**result, 'success': False, 'error': f'Docking completed, PLIP failed: {result_error(plip)}'}
+    return result
 
 
 def batch_mutant_docking(protein_pdb: str, ligand_sdf: str,
@@ -172,6 +188,8 @@ def register_skills(registry: SkillRegistry):
                        required=False, is_output_path=True),
             SkillParam('run_vina', 'bool', 'Run Vina docking', required=False, default=True),
             SkillParam('run_plip', 'bool', 'Run PLIP interaction analysis', required=False, default=True),
+            SkillParam('center', 'list', 'Optional explicit grid center x,y,z in Angstrom', required=False),
+            SkillParam('box_size', 'list', 'Optional box dimensions x,y,z in Angstrom', required=False),
         ],
         outputs=[
             SkillParam('result', 'dict', 'Docking results + interactions'),

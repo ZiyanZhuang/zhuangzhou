@@ -20,6 +20,7 @@ _TYPE_MAP = {
     'list': 'array',
     'set': 'array',
     'dict': 'object',
+    'json': ['string', 'object', 'array'],
 }
 
 
@@ -31,6 +32,8 @@ def skill_to_tool(skill) -> dict:
     for p in skill.inputs:
         json_type = _TYPE_MAP.get(p.type, 'string')
         prop = {'type': json_type}
+        if json_type == 'array' or isinstance(json_type, list) and 'array' in json_type:
+            prop['items'] = {}  # Lists may hold structured records or numeric coordinates.
         if p.description:
             prop['description'] = p.description
         if p.default is not None:

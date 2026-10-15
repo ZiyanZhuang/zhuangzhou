@@ -5,6 +5,7 @@ Enhanced with Robust JSON extraction and Error Isolation.
 """
 
 import json
+import copy
 import logging
 import queue
 import re
@@ -29,7 +30,8 @@ Extract entities and relationships from the following turn of conversation.
 FOCUS ON:
 - Proteins, Mutations, Ligands, Forcefields, Simulation params.
 - Success/Failure events and specific error reasons.
-- Causality (e.g. "V21L increases stability").
+- Claims and hypotheses with explicit provenance; do not infer causal validation.
+These triples remain unverified model extractions, not established scientific facts.
 
 OUTPUT FORMAT:
 Return ONLY a JSON list of triples: [{"head": "...", "relation": "...", "tail": "..."}]
@@ -39,15 +41,26 @@ Return ONLY a JSON list of triples: [{"head": "...", "relation": "...", "tail": 
 class LocalKGEngine:
     """Asynchronous Knowledge Graph extractor using local Ollama."""
 
+    _storage_lock = threading.RLock()
+
     def __init__(self, model="deepseek-r1:8b"):
         self.model = model
-        self.queue = queue.Queue()
+        self.queue = queue.Queue(maxsize=32)
         self.running = True
-        self.worker = threading.Thread(target=self._process_loop, daemon=True)
-        self.worker.start()
+        self.worker = None
+        self._worker_lock = threading.Lock()
 
     def add_to_queue(self, turn_data: dict):
-        self.queue.put(turn_data)
+        try:
+            self.queue.put_nowait(copy.deepcopy(turn_data))
+        except queue.Full:
+            logger.warning('KG distillation queue is full; original turn remains in session archive')
+            return False
+        with self._worker_lock:
+            if self.worker is None:
+                self.worker = threading.Thread(target=self._process_loop, daemon=True)
+                self.worker.start()
+        return True
 
     @staticmethod
     def get_db_path() -> str:
@@ -115,6 +128,9 @@ class LocalKGEngine:
                         "timestamp": timestamp,
                         "access_count": int(triple.get("access_count", 0) or 0),
                         "last_accessed": str(triple.get("last_accessed", "")),
+                        'verification_status': record.get('verification_status', 'legacy_unverified'),
+                        'source_type': record.get('source_type', 'legacy_unknown'),
+                        'source_model': record.get('source_model', ''),
                     }
 
     @classmethod
@@ -182,51 +198,55 @@ class LocalKGEngine:
 
     @classmethod
     def query(cls, entity: str, limit: int = 5) -> List[dict]:
-        query = str(entity or "").strip().lower()
-        if not query:
-            return cls.recent_triples(limit=limit)
-        records = list(cls._iter_records() or [])
-        matched = []
-        touched = False
-        now = datetime.now().isoformat()
-        for record in records:
-            triples = record.get("triples", [])
-            if not isinstance(triples, list):
-                continue
-            for triple in triples:
-                if not isinstance(triple, dict):
+        with cls._storage_lock:
+            query = str(entity or "").strip().lower()
+            if not query:
+                return cls.recent_triples(limit=limit)
+            records = list(cls._iter_records() or [])
+            matched = []
+            touched = False
+            now = datetime.now().isoformat()
+            for record in records:
+                triples = record.get("triples", [])
+                if not isinstance(triples, list):
                     continue
-                head = str(triple.get("head", "")).strip()
-                relation = str(triple.get("relation", "")).strip()
-                tail = str(triple.get("tail", "")).strip()
-                haystacks = [head.lower(), relation.lower(), tail.lower()]
-                score = sum(1 for hay in haystacks if query in hay)
-                if score:
-                    triple["access_count"] = int(triple.get("access_count", 0) or 0) + 1
-                    triple["last_accessed"] = now
-                    touched = True
-                    matched.append(
-                        {
-                            "head": head,
-                            "relation": relation,
-                            "tail": tail,
-                            "timestamp": str(record.get("timestamp", "")),
-                            "access_count": triple["access_count"],
-                            "last_accessed": triple["last_accessed"],
-                            "score": score,
-                        }
-                    )
-        if touched:
-            cls._write_records(records)
-        matched.sort(
-            key=lambda item: (
-                item.get("score", 0),
-                item.get("access_count", 0),
-                item.get("timestamp", ""),
-            ),
-            reverse=True,
-        )
-        return matched[:limit]
+                for triple in triples:
+                    if not isinstance(triple, dict):
+                        continue
+                    head = str(triple.get("head", "")).strip()
+                    relation = str(triple.get("relation", "")).strip()
+                    tail = str(triple.get("tail", "")).strip()
+                    haystacks = [head.lower(), relation.lower(), tail.lower()]
+                    score = sum(1 for hay in haystacks if query in hay)
+                    if score:
+                        triple["access_count"] = int(triple.get("access_count", 0) or 0) + 1
+                        triple["last_accessed"] = now
+                        touched = True
+                        matched.append(
+                            {
+                                "head": head,
+                                "relation": relation,
+                                "tail": tail,
+                                "timestamp": str(record.get("timestamp", "")),
+                                "access_count": triple["access_count"],
+                                "last_accessed": triple["last_accessed"],
+                                "score": score,
+                                'verification_status': record.get('verification_status', 'legacy_unverified'),
+                                'source_type': record.get('source_type', 'legacy_unknown'),
+                                'source_model': record.get('source_model', ''),
+                            }
+                        )
+            if touched:
+                cls._write_records(records)
+            matched.sort(
+                key=lambda item: (
+                    item.get("score", 0),
+                    item.get("access_count", 0),
+                    item.get("timestamp", ""),
+                ),
+                reverse=True,
+            )
+            return matched[:limit]
 
     @classmethod
     def top_patterns(cls, limit: int = 5) -> List[dict]:
@@ -323,8 +343,10 @@ class LocalKGEngine:
         while self.running:
             try:
                 turn = self.queue.get(timeout=5)
-                self._distill(turn)
-                self.queue.task_done()
+                try:
+                    self._distill(turn)
+                finally:
+                    self.queue.task_done()
             except queue.Empty:
                 continue
             except Exception as e:
@@ -390,15 +412,19 @@ class LocalKGEngine:
             item.setdefault("access_count", 0)
             item.setdefault("last_accessed", "")
             enriched.append(item)
-        record = {"timestamp": timestamp, "triples": enriched}
+        record = {"timestamp": timestamp, "triples": enriched,
+                  'source_type': 'llm_distillation', 'source_model': self.model,
+                  'verification_status': 'unverified'}
         try:
-            with open(db_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-                f.flush()
-                os.fsync(f.fileno())
+            with self._storage_lock:
+                with open(db_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(record, ensure_ascii=False) + "\n")
+                    f.flush()
+                    os.fsync(f.fileno())
             self._maybe_auto_export()
-        except:
-            pass
+        except OSError:
+            logger.exception('Failed to persist extracted KG triples')
+            raise
 
 
 kg_engine = LocalKGEngine()

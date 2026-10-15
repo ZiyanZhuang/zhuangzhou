@@ -11,7 +11,9 @@ Each skill has a manifest: name, category, inputs, outputs, requirements.
 """
 
 import importlib
+import copy
 import logging
+import math
 import os
 import sys
 from dataclasses import dataclass, field
@@ -27,7 +29,7 @@ _registry_instance = None
 class SkillParam:
     """A skill input/output parameter."""
     name: str
-    type: str  # 'path', 'string', 'int', 'float', 'list', 'set', 'dict', 'bool'
+    type: str  # path|string|int|float|list|set|dict|bool|json (structured or serialized)
     description: str = ""
     required: bool = True
     default: Any = None
@@ -80,7 +82,7 @@ class Skill:
         """
         # Required params
         missing = [p.name for p in self.inputs
-                   if p.required and p.name not in kwargs]
+                   if p.required and (p.name not in kwargs or kwargs[p.name] is None)]
         if missing:
             return {'error': f'Missing required parameters: {missing}',
                     'hint': {p.name: f'{p.type} — {p.description}'
@@ -155,17 +157,11 @@ class Skill:
 
     def execute(self, **kwargs) -> Any:
         """Execute the skill with validated parameters."""
-        # 0. Inject defaults for missing optional params (before preflight)
+        # Normalize before preflight so validation and dispatch see identical values.
         for p in self.inputs:
             if p.name not in kwargs and p.default is not None:
-                kwargs[p.name] = p.default
+                kwargs[p.name] = copy.deepcopy(p.default)
 
-        # 1. Pre-flight validation (catches missing params + bad paths before wasting compute)
-        preflight_err = self.preflight(**kwargs)
-        if preflight_err:
-            return preflight_err
-
-        # 2. Type coercion + validation
         for p in self.inputs:
             if p.name not in kwargs:
                 continue
@@ -173,42 +169,67 @@ class Skill:
             if val is None:
                 continue
 
-            # path must be string
-            if p.type == 'path' and not isinstance(val, str):
-                return {'error': f'Parameter "{p.name}" must be a file path string, got {type(val).__name__}'}
+            try:
+                if p.type == 'path':
+                    val = os.fspath(val)
+                    if not isinstance(val, str):
+                        raise ValueError('must be a file path string')
+                elif p.type == 'string':
+                    if not isinstance(val, str):
+                        raise ValueError('must be a string')
+                elif p.type in ('list', 'set'):
+                    if isinstance(val, str):
+                        val = [x.strip() for x in val.split(',') if x.strip()]
+                    if not isinstance(val, (list, tuple, set)):
+                        raise ValueError('must be a list')
+                    val = set(val) if p.type == 'set' else list(val)
+                elif p.type == 'dict':
+                    if not isinstance(val, dict):
+                        raise ValueError('must be a dictionary')
+                elif p.type == 'json':
+                    if not isinstance(val, (str, list, dict)):
+                        raise ValueError('must be structured JSON or a JSON string')
+                elif p.type == 'int':
+                    if isinstance(val, bool) or not isinstance(val, (str, int, float)):
+                        raise ValueError('must be integer')
+                    converted = int(val)
+                    if isinstance(val, float) and converted != val:
+                        raise ValueError('must be integer without fractional part')
+                    val = converted
+                elif p.type == 'float':
+                    if isinstance(val, bool) or not isinstance(val, (str, int, float)):
+                        raise ValueError('must be a finite number')
+                    val = float(val)
+                    if not math.isfinite(val):
+                        raise ValueError('must be a finite number')
+                elif p.type == 'bool':
+                    if isinstance(val, str):
+                        values = {'true': True, '1': True, 'yes': True,
+                                  'false': False, '0': False, 'no': False}
+                        if val.strip().lower() not in values:
+                            raise ValueError('must be boolean')
+                        val = values[val.strip().lower()]
+                    elif isinstance(val, (bool, int, float)) and val in (0, 1):
+                        val = bool(val)
+                    else:
+                        raise ValueError('must be boolean')
+                if p.required and (isinstance(val, str) and not val.strip()
+                                   or isinstance(val, (list, set, dict)) and not val):
+                    raise ValueError('requires a non-empty value')
+            except (ValueError, TypeError, OverflowError) as e:
+                detail = 'must be a file path string' if p.type == 'path' else str(e)
+                return {'error': f'Parameter "{p.name}" {detail}', 'hint': p.description}
 
-            # list/set: auto-split comma-separated strings
-            if p.type in ('list', 'set') and isinstance(val, str):
-                split_val = [x.strip() for x in val.split(',') if x.strip()]
-                if not split_val and p.required:
-                    return {'error': f'Parameter "{p.name}" requires a non-empty list',
-                            'hint': p.description}
-                kwargs[p.name] = split_val
+            if p.choices:
+                canonical = next((c for c in p.choices if str(c).lower() == str(val).lower()), None)
+                if canonical is None:
+                    return {'error': f'Parameter "{p.name}" must be one of {p.choices}, got "{val}"'}
+                val = canonical
+            kwargs[p.name] = val
 
-            # int coercion
-            if p.type == 'int' and not isinstance(val, int):
-                try:
-                    kwargs[p.name] = int(val)
-                except (ValueError, TypeError):
-                    return {'error': f'Parameter "{p.name}" must be integer, got "{val}"'}
-
-            # float coercion
-            if p.type == 'float' and not isinstance(val, (int, float)):
-                try:
-                    kwargs[p.name] = float(val)
-                except (ValueError, TypeError):
-                    return {'error': f'Parameter "{p.name}" must be number, got "{val}"'}
-
-            # bool coercion
-            if p.type == 'bool' and not isinstance(val, bool):
-                if isinstance(val, str):
-                    if val.lower() in ('true', '1', 'yes'):
-                        kwargs[p.name] = True
-                    elif val.lower() in ('false', '0', 'no'):
-                        kwargs[p.name] = False
-                    # else leave as string
-                elif isinstance(val, (int, float)):
-                    kwargs[p.name] = bool(val)
+        preflight_err = self.preflight(**kwargs)
+        if preflight_err:
+            return preflight_err
 
         return self.fn(**kwargs)
 

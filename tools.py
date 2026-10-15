@@ -22,6 +22,7 @@ Tools bridged:
 
 import json
 import logging
+import math
 import os
 import subprocess
 import sys
@@ -53,18 +54,37 @@ def _add_scripts_path(config: dict = None):
 def load_esm2_results(result_dirs: List[str]) -> List[dict]:
     """Load and merge ESM-2 multi-model results from JSON files."""
     all_mutations = {}
+    reference_residues = {}
     for rdir in result_dirs:
         json_path = os.path.join(rdir, 'esm2_beneficial_mutations.json')
         if not os.path.exists(json_path):
-            logger.warning("ESM-2 results not found: %s", json_path)
-            continue
-        with open(json_path, encoding='utf-8', errors='replace') as f:
+            raise FileNotFoundError(f'ESM-2 results not found: {json_path}')
+        with open(json_path, encoding='utf-8-sig') as f:
             data = json.load(f)
+        if not isinstance(data, dict) or not isinstance(data.get('mutations'), list):
+            raise ValueError(f'ESM-2 results require a mutations list: {json_path}')
         model_name = data.get('model', os.path.basename(rdir))
-        for m in data.get('mutations', []):
+        if not isinstance(model_name, str) or not model_name.strip():
+            raise ValueError(f'ESM-2 model identity must be a non-empty string: {json_path}')
+        for index, m in enumerate(data['mutations']):
+            if not isinstance(m, dict) or not {'position', 'wt', 'mut', 'mutation', 'delta_ll'} <= m.keys():
+                raise ValueError(f'Invalid mutation record {index} in {json_path}')
+            if type(m['position']) is not int or m['position'] <= 0:
+                raise ValueError(f'Mutation position must be a positive integer: record {index}')
+            if not all(isinstance(m[k], str) and len(m[k]) == 1 for k in ('wt', 'mut')):
+                raise ValueError(f'Mutation residue codes must be single characters: record {index}')
+            if m['mutation'] != f"{m['wt']}{m['position']}{m['mut']}":
+                raise ValueError(f'Mutation identifier disagrees with position/residues: record {index}')
+            if type(m['delta_ll']) not in (int, float) or not math.isfinite(m['delta_ll']):
+                raise ValueError(f'Mutation delta_ll must be a finite number: record {index}')
             key = (m['position'], m['mut'])
+            if reference_residues.setdefault(m['position'], m['wt']) != m['wt']:
+                raise ValueError(f'Conflicting reference residue at position {m["position"]}')
             if key not in all_mutations:
                 all_mutations[key] = {**m, 'scores': {}}
+            previous = all_mutations[key]['scores'].get(model_name)
+            if previous is not None and previous != m['delta_ll']:
+                raise ValueError(f'Conflicting scores for model {model_name}, mutation {m["mutation"]}')
             all_mutations[key]['scores'][model_name] = m['delta_ll']
 
     merged = []
@@ -72,6 +92,8 @@ def load_esm2_results(result_dirs: List[str]) -> List[dict]:
         scores = info['scores']
         n_models = len(scores)
         avg = sum(scores.values()) / n_models
+        if not math.isfinite(avg) or not math.isfinite(avg * (1 + 0.3 * (n_models - 1))):
+            raise ValueError('ESM-2 score aggregation overflowed; check saved score scales')
         merged.append({
             'position': info['position'],
             'wt': info['wt'],
@@ -275,7 +297,7 @@ def detect_cofactors(pdb_path: str, output_dir: str = None,
 
 def classify_mutations(pdb_path: str, mutations: List[str],
                        binding_site: Set[int] = None,
-                       config: dict = None) -> List[dict]:
+                       config: dict = None) -> List[dict] | dict:
     """
     Classify mutations by structural role (active_site, buried_core, surface, etc.)
 
@@ -307,11 +329,11 @@ def classify_mutations(pdb_path: str, mutations: List[str],
         results = _classify(pdb_path, mutations_dicts, binding_site)
         return results
     except ImportError:
-        logger.warning("mutation_classifier not importable, using built-in")
-        return []
+        return {'error': 'mutation_classifier backend is unavailable',
+                'hint': 'Configure unimol_root with the required scripts; no structural classification was performed'}
     except Exception as e:
         logger.error("Classification failed: %s", e)
-        return []
+        return {'error': f'Mutation classification failed: {e}'}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -347,7 +369,7 @@ def run_smart_docking(pdb_file: str, ligand_sdf: str = None,
                       ligand_resname: str = None, output_dir: str = None,
                       chain: str = None, exhaustiveness: int = 32,
                       num_modes: int = 9, padding: float = 10.0,
-                      config: dict = None) -> dict:
+                      config: dict = None, *, center: list = None, box_size: list = None) -> dict:
     """
     Run the full SmartDocking pipeline (self-contained, no external imports).
 
@@ -370,7 +392,7 @@ def run_smart_docking(pdb_file: str, ligand_sdf: str = None,
         return sd.run(
             ligand_sdf=ligand_sdf, ligand_resname=ligand_resname,
             chain=chain, exhaustiveness=exhaustiveness,
-            num_modes=num_modes, padding=padding)
+            num_modes=num_modes, padding=padding, center=center, box_size=box_size)
     except Exception as e:
         return {'error': str(e)}
 

@@ -12,14 +12,16 @@ import os
 import sys
 import time
 import traceback
+import pytest
 
-sys.stdout.reconfigure(encoding='utf-8')
-sys.stderr.reconfigure(encoding='utf-8')
+if __name__ == '__main__':
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 
 # Ensure zhuangzhou is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from skills.registry import get_registry
+from zhuangzhou.skills.registry import get_registry
 
 
 # =============================================================================
@@ -27,6 +29,7 @@ from skills.registry import get_registry
 # =============================================================================
 
 class TestResult:
+    __test__ = False  # Standalone script harness, not a pytest test class.
     def __init__(self, name):
         self.name = name
         self.passed = False
@@ -108,7 +111,7 @@ def test_type_coercion():
     # Test string→float coercion
     s2 = reg.get('gromacs_md')
     # Can't actually run, but test the validation layer
-    from skills.registry import Skill, SkillParam
+    from zhuangzhou.skills.registry import Skill, SkillParam
     test_skill = Skill(
         name='_test', description='test', category='test',
         fn=lambda simulation_time_ns=10.0, **kw: {'time': simulation_time_ns},
@@ -136,7 +139,15 @@ def test_choices_validation():
     assert 'error' in r2, "Should reject invalid viz_type"
 
     # Invalid metric
-    s3 = reg.get('chimerax_defattr')
+    # The manifest is still testable while GUI skills stay disabled in the real registry.
+    from unittest.mock import patch
+    from zhuangzhou.skills import visualization
+    from zhuangzhou.skills.registry import SkillRegistry
+    isolated = SkillRegistry()
+    isolated._loaded = True
+    with patch.object(visualization, '_DISABLED_VIZ_SKILLS', frozenset()):
+        visualization.register_skills(isolated)
+    s3 = isolated.get('chimerax_defattr')
     r3 = s3.execute(work_dir='/tmp', metric='temperature')
     assert 'error' in r3, "Should reject invalid metric"
 
@@ -177,7 +188,7 @@ def test_path_type_validation():
 
 def test_confirmation_gate():
     """High-risk skills trigger confirmation on first call."""
-    from nlp.agent import AgentExecutor
+    from zhuangzhou.nlp.agent import AgentExecutor
 
     class MockBackend:
         name = 'mock'
@@ -208,7 +219,7 @@ def test_confirmation_gate():
 
 def test_execution_log():
     """Execution log records skill calls with metadata."""
-    from nlp.agent import AgentExecutor
+    from zhuangzhou.nlp.agent import AgentExecutor
 
     class MockBackend:
         name = 'mock'
@@ -232,7 +243,7 @@ def test_execution_log():
 
 def test_nonexistent_skill_in_executor():
     """AgentExecutor returns helpful error for nonexistent skills."""
-    from nlp.agent import AgentExecutor
+    from zhuangzhou.nlp.agent import AgentExecutor
 
     class MockBackend:
         name = 'mock'
@@ -251,7 +262,7 @@ def test_nonexistent_skill_in_executor():
 
 def test_system_prompt_content():
     """System prompt contains all required sections."""
-    from nlp.agent import AgentExecutor
+    from zhuangzhou.nlp.agent import AgentExecutor
 
     class MockBackend:
         name = 'mock'
@@ -287,7 +298,7 @@ def test_system_prompt_content():
 
 def test_schema_has_enum():
     """Tool schemas include enum for params with choices."""
-    from nlp.tools import skill_to_tool
+    from zhuangzhou.nlp.tools import skill_to_tool
     reg = get_registry()
 
     s = reg.get('mutate_minimize')
@@ -307,7 +318,7 @@ def test_schema_has_enum():
 
 def test_schema_risk_tags():
     """High-risk skills have [HIGH-RISK] tag in description."""
-    from nlp.tools import skill_to_tool
+    from zhuangzhou.nlp.tools import skill_to_tool
     reg = get_registry()
 
     high_risk_skills = ['gromacs_md', 'metalloprotein_md', 'auto_md', 'synbio_pipeline']
@@ -329,7 +340,7 @@ def test_schema_risk_tags():
 
 def test_schema_default_values():
     """Tool schemas include default values."""
-    from nlp.tools import skill_to_tool
+    from zhuangzhou.nlp.tools import skill_to_tool
     reg = get_registry()
 
     s = reg.get('mutate_minimize')
@@ -345,10 +356,11 @@ def test_schema_default_values():
 # Group 4: Live Agent Conversation (requires LLM backend)
 # =============================================================================
 
+@pytest.mark.live_api
 def test_agent_simple_query():
     """Agent answers a simple knowledge question without tool calls."""
     try:
-        from nlp.agent import ZhuangzhouAgent
+        from zhuangzhou.nlp.agent import ZhuangzhouAgent
         agent = ZhuangzhouAgent(verbose=True)
     except Exception as e:
         return f"SKIP (no backend): {e}"
@@ -359,10 +371,11 @@ def test_agent_simple_query():
     return f"Response ({len(response)} chars): {response[:200]}..."
 
 
+@pytest.mark.live_api
 def test_agent_tool_selection():
     """Agent selects correct tool for a clear task."""
     try:
-        from nlp.agent import ZhuangzhouAgent
+        from zhuangzhou.nlp.agent import ZhuangzhouAgent
         agent = ZhuangzhouAgent(verbose=True)
     except Exception as e:
         return f"SKIP (no backend): {e}"
@@ -383,10 +396,11 @@ def test_agent_tool_selection():
     return f"Tools called: {[e['skill'] for e in log]}, Response: {response[:150]}..."
 
 
+@pytest.mark.live_api
 def test_agent_refuses_hallucinated_path():
     """Agent should not fabricate file paths for computational skills."""
     try:
-        from nlp.agent import ZhuangzhouAgent
+        from zhuangzhou.nlp.agent import ZhuangzhouAgent
         agent = ZhuangzhouAgent(verbose=True)
     except Exception as e:
         return f"SKIP (no backend): {e}"
@@ -403,10 +417,11 @@ def test_agent_refuses_hallucinated_path():
     return f"Tools: {[e['skill'] for e in log]}, Response: {response[:150]}..."
 
 
+@pytest.mark.live_api
 def test_agent_confirmation_flow():
     """Agent should report needs_confirmation for high-risk MD."""
     try:
-        from nlp.agent import ZhuangzhouAgent
+        from zhuangzhou.nlp.agent import ZhuangzhouAgent
         agent = ZhuangzhouAgent(verbose=True)
     except Exception as e:
         return f"SKIP (no backend): {e}"
@@ -426,10 +441,11 @@ def test_agent_confirmation_flow():
     return f"Tools: {[e['skill'] for e in log]}, confirmation_mentioned: {has_confirmation_mention}, Response: {response[:200]}..."
 
 
+@pytest.mark.live_api
 def test_agent_multi_turn():
     """Multi-turn conversation maintains context."""
     try:
-        from nlp.agent import ZhuangzhouAgent
+        from zhuangzhou.nlp.agent import ZhuangzhouAgent
         agent = ZhuangzhouAgent(verbose=True)
     except Exception as e:
         return f"SKIP (no backend): {e}"

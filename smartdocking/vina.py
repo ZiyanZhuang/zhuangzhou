@@ -8,9 +8,12 @@ Executable paths and defaults come from config.py.
 """
 
 import logging
+import math
+import numbers
 import os
 import re
 import subprocess
+import tempfile
 
 from .config import VINA_EXECUTABLES, VINA_DEFAULTS
 
@@ -40,9 +43,25 @@ def run_vina(receptor_pdbqt: str, ligand_pdbqt: str, grid: dict,
         or dict with 'error' on failure
     """
     # Apply defaults from config
-    exhaustiveness = exhaustiveness or VINA_DEFAULTS['exhaustiveness']
-    num_modes = num_modes or VINA_DEFAULTS['num_modes']
-    timeout = timeout or VINA_DEFAULTS['timeout']
+    exhaustiveness = VINA_DEFAULTS['exhaustiveness'] if exhaustiveness is None else exhaustiveness
+    num_modes = VINA_DEFAULTS['num_modes'] if num_modes is None else num_modes
+    timeout = VINA_DEFAULTS['timeout'] if timeout is None else timeout
+    for name, value in (('exhaustiveness', exhaustiveness), ('num_modes', num_modes)):
+        if type(value) is not int or value <= 0:
+            return {'error': f'{name} must be a positive integer'}
+    if isinstance(timeout, bool) or not isinstance(timeout, numbers.Real) or not math.isfinite(timeout) or timeout <= 0:
+        return {'error': 'timeout must be a positive finite number'}
+    if not isinstance(grid, dict):
+        return {'error': 'Docking grid must be a dictionary'}
+    for name in ('center_x', 'center_y', 'center_z', 'size_x', 'size_y', 'size_z'):
+        value = grid.get(name)
+        if isinstance(value, bool) or not isinstance(value, numbers.Real) or not math.isfinite(value):
+            return {'error': f'Docking grid {name} must be a finite number'}
+        if name.startswith('size_') and value <= 0:
+            return {'error': f'Docking grid {name} must be positive (Angstrom)'}
+    for path in (receptor_pdbqt, ligand_pdbqt):
+        if not os.path.isfile(path):
+            return {'error': f'Docking input file not found: {path}'}
     gpu_thread = VINA_DEFAULTS['gpu_thread']
     gpu_search_depth = search_depth or VINA_DEFAULTS['gpu_search_depth']
     cpu_count = VINA_DEFAULTS['cpu']
@@ -53,8 +72,12 @@ def run_vina(receptor_pdbqt: str, ligand_pdbqt: str, grid: dict,
                 'hint': f'Searched: {VINA_EXECUTABLES}'}
 
     os.makedirs(output_dir, exist_ok=True)
-    out_pdbqt = os.path.abspath(os.path.join(output_dir, 'vina_docked.pdbqt'))
-    log_file = os.path.abspath(os.path.join(output_dir, 'vina_log.txt'))
+    run_dir = tempfile.mkdtemp(prefix='vina-run-', dir=os.path.abspath(output_dir))
+    out_pdbqt = os.path.join(run_dir, 'vina_docked.pdbqt')
+    log_file = os.path.join(run_dir, 'vina_log.txt')
+    grid_used = {**grid, **{name: min(grid[name], 60) for name in ('size_x', 'size_y', 'size_z')}}
+    metadata = {'run_dir': run_dir, 'output_pdbqt': out_pdbqt, 'log_file': log_file,
+                'requested_grid': dict(grid), 'grid_used': grid_used}
 
     cmd = [
         vina_exe,
@@ -93,24 +116,34 @@ def run_vina(receptor_pdbqt: str, ligand_pdbqt: str, grid: dict,
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd)
         if result.returncode != 0:
-            return {'error': f'{label} failed (rc={result.returncode})',
+            return {**metadata, 'error': f'{label} failed (rc={result.returncode})',
                     'stderr': result.stderr[-500:] if result.stderr else ''}
     except subprocess.TimeoutExpired:
-        return {'error': f'{label} timed out ({timeout}s)'}
+        return {**metadata, 'error': f'{label} timed out ({timeout}s)'}
     except Exception as e:
-        return {'error': str(e)}
+        return {**metadata, 'error': str(e)}
 
     # Parse results
-    affinities = _parse_vina_log(log_file)
-    if not affinities and os.path.exists(out_pdbqt):
-        affinities = _parse_vina_pdbqt(out_pdbqt)
+    try:
+        if not os.path.isfile(out_pdbqt):
+            return {**metadata, 'error': 'Vina exited successfully but produced no pose file'}
+        with open(out_pdbqt, encoding='utf-8') as handle:
+            if not any(line.startswith(('ATOM  ', 'HETATM')) for line in handle):
+                return {**metadata, 'error': 'Vina pose file contains no atom records'}
+        affinities = _parse_vina_log(log_file)
+        if not affinities:
+            affinities = _parse_vina_pdbqt(out_pdbqt)
+        if not affinities or not all(math.isfinite(v) for row in affinities for v in row[1:]):
+            return {**metadata, 'error': 'Vina produced no valid finite affinity table'}
+    except (OSError, ValueError, UnicodeError) as e:
+        return {**metadata, 'error': f'Cannot parse Vina outputs: {e}'}
 
     best = affinities[0][1] if affinities else None
     logger.info("%s done: best = %s kcal/mol, %d poses", label, best, len(affinities))
 
     return {
-        'output_pdbqt': out_pdbqt,
-        'log_file': log_file,
+        **metadata,
+        'success': True,
         'affinities': affinities,
         'best_affinity': best,
         'vina_exe': label,

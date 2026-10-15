@@ -8,6 +8,7 @@ FullFidelityArchive class is kept only as a compatibility adapter.
 
 import json
 import os
+from zhuangzhou.utils.robustness import redact_secrets
 from datetime import datetime
 from typing import List
 
@@ -49,7 +50,7 @@ class Journal:
             "skill",
             {
                 "skill": skill_name,
-                "params": {k: str(v)[:100] for k, v in params.items()},
+                "params": {k: str(v)[:100] for k, v in redact_secrets(params).items()},
                 "success": success,
                 "elapsed": elapsed,
             },
@@ -89,10 +90,12 @@ class FullFidelityArchive:
             },
         )
         for item in skills or []:
-            tool_name = item.get("tool") or item.get("name") or "unknown_tool"
+            if not isinstance(item, dict):
+                continue
+            tool_name = item.get("tool") or item.get("name") or item.get('skill') or "unknown_tool"
             params = item.get("params", {}) if isinstance(item, dict) else {}
             result = item.get("result", {}) if isinstance(item, dict) else {}
-            elapsed_ms = item.get("elapsed_ms", 0) if isinstance(item, dict) else 0
+            elapsed_ms = item.get("elapsed_ms", item.get('elapsed', 0) * 1000)
             success = item.get("success", True) if isinstance(item, dict) else True
             archive.record_tool_call(tool_name, params, result, elapsed_ms, success)
         if thought:

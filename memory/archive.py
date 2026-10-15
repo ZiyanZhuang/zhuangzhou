@@ -1,4 +1,4 @@
-﻿"""
+"""
 Session Archive 鈥?complete interaction recording
 ===================================================
 Records every tool call with full context, parameters, results, and timing.
@@ -15,7 +15,10 @@ Structure:
 """
 
 import json
+import uuid
 import os
+import re
+from zhuangzhou.utils.robustness import atomic_write_json, redact_secrets
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -29,7 +32,7 @@ class SessionArchive:
     def __init__(self, archive_dir: str = None):
         self.archive_dir = archive_dir or ARCHIVE_DIR
         os.makedirs(self.archive_dir, exist_ok=True)
-        self.session_id = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        self.session_id = datetime.now().strftime("%Y-%m-%d_%H%M%S") + '_' + uuid.uuid4().hex[:8]
         self.interactions: List[dict] = []
         self._current_interaction = None
 
@@ -58,6 +61,8 @@ class SessionArchive:
         if not self._current_interaction:
             return
         # Truncate large results for storage (increased from 5000 to 10000)
+        result = redact_secrets(result)
+        params = redact_secrets(params)
         result_str = json.dumps(result, ensure_ascii=False, default=str)
         if len(result_str) > 10000:
             result_str = result_str[:10000] + "...(truncated)"
@@ -102,8 +107,7 @@ class SessionArchive:
             "interactions": self.interactions,
         }
         path = os.path.join(self.archive_dir, f"{self.session_id}.json")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+        atomic_write_json(path, data)
 
         # Update index
         self._update_index()
@@ -175,6 +179,8 @@ class SessionArchive:
 
     def load_session(self, session_id: str) -> Optional[dict]:
         """Load a full archived session by ID."""
+        if not isinstance(session_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]+', session_id):
+            return None
         path = os.path.join(self.archive_dir, f"{session_id}.json")
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
@@ -242,4 +248,3 @@ def _safe_serialize(obj: Any, max_len: int = 500) -> Any:
     if isinstance(obj, set):
         return sorted(obj)[:20]
     return obj
-

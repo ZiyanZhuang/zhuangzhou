@@ -19,14 +19,18 @@ Thread Safety:
 """
 
 import concurrent.futures
+import copy
 import json
 import logging
 import threading
 import time
 import traceback
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from zhuangzhou.skills.results import result_error
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +86,9 @@ def is_skill_concurrent_safe(skill) -> bool:
     # Explicit skill-level override
     if getattr(skill, 'concurrent_safe', None) is not None:
         return skill.concurrent_safe
+
+    if any(getattr(skill, flag, False) for flag in ('requires_gpu', 'requires_wsl', 'remote_preferred')):
+        return False
 
     # Category-based default
     return skill.category not in CONCURRENT_UNSAFE_CATEGORIES
@@ -143,11 +150,12 @@ def run_batch_concurrent(
         List of (ToolCallRequest, result_dict) in original order.
         Per-tool error isolation: one failure returns error dict, others continue.
     """
+    if not batch:
+        return []
     if len(batch) == 1:
         # Single call — skip thread pool overhead
         tc = batch[0]
-        result = executor_fn(tc.name, tc.arguments)
-        return [(tc, result)]
+        return run_batch_serial(batch, executor_fn)
 
     n_workers = min(max_workers, len(batch))
     results: List[Optional[Tuple[Any, dict]]] = [None] * len(batch)
@@ -185,7 +193,10 @@ def run_batch_serial(
     """Run tool calls sequentially (for non-concurrent-safe skills)."""
     results = []
     for tc in batch:
-        result = executor_fn(tc.name, tc.arguments)
+        try:
+            result = executor_fn(tc.name, tc.arguments)
+        except Exception as e:
+            result = {'error': str(e), 'traceback': traceback.format_exc()}
         results.append((tc, result))
     return results
 
@@ -246,8 +257,8 @@ class ParallelSkillExecutor:
         # Single tool call → fast path, no partitioning overhead
         if len(tool_calls) == 1:
             tc = tool_calls[0]
-            result = self.executor_fn(tc.name, tc.arguments)
-            has_error = isinstance(result, dict) and 'error' in result
+            result = run_batch_serial([tc], self.executor_fn)[0][1]
+            has_error = result_error(result) is not None
             next_steps = (result.get('next_steps', [])
                           if isinstance(result, dict) else [])
             self._stats['serial_batches'] += 1
@@ -288,7 +299,7 @@ class ParallelSkillExecutor:
             # Collect results
             for tc, result in results:
                 if isinstance(result, dict):
-                    if 'error' in result:
+                    if result_error(result):
                         batch_has_error = True
                     if result.get('next_steps'):
                         pending_next_steps.extend(result['next_steps'])
@@ -332,8 +343,8 @@ class BackgroundTask:
             return 'cancelled'
         if self.future.done():
             try:
-                self.future.result()
-                return 'completed'
+                result = self.future.result()
+                return 'failed' if result_error(result) else 'completed'
             except Exception:
                 return 'failed'
         return 'running'
@@ -349,6 +360,21 @@ class BackgroundTask:
         }
 
 
+def parameters_match(first: Any, second: Any) -> bool:
+    """Match JSON inputs exactly; Python equality conflates bools and numbers."""
+    if type(first) is not type(second):
+        return False
+    if type(first) is dict:
+        return (all(type(key) is str for key in first)
+                and first.keys() == second.keys()
+                and all(parameters_match(value, second[key]) for key, value in first.items()))
+    if type(first) is list:
+        return len(first) == len(second) and all(parameters_match(a, b) for a, b in zip(first, second))
+    if type(first) in (str, int, float, bool, type(None)):
+        return first == second
+    return False
+
+
 class BackgroundTaskManager:
     """Manages background tasks with progress tracking.
 
@@ -360,13 +386,15 @@ class BackgroundTaskManager:
         result = bg.collect_result(task_id)
     """
 
-    def __init__(self, max_workers: int = MAX_BACKGROUND_WORKERS):
+    def __init__(self, max_workers: int = MAX_BACKGROUND_WORKERS, max_pending: int = 32):
+        if type(max_pending) is not int or max_pending < 1:
+            raise ValueError('max_pending must be a positive integer')
         self._pool = ThreadPoolExecutor(
             max_workers=max_workers, thread_name_prefix='zz-bg'
         )
         self._tasks: Dict[str, BackgroundTask] = {}
         self._lock = threading.Lock()
-        self._completed_results: Dict[str, Any] = {}  # Cache results after completion
+        self.max_pending = max_pending
 
     def submit(
         self,
@@ -375,6 +403,7 @@ class BackgroundTaskManager:
         executor_fn: Callable,
         description: str = '',
         estimated_seconds: float = 60.0,
+        exclusive: bool = False,
     ) -> str:
         """Submit a skill for background execution.
 
@@ -384,43 +413,46 @@ class BackgroundTaskManager:
             executor_fn: Callable(name, params) -> dict.
             description: Human-readable task description.
             estimated_seconds: Estimated run time (for progress display).
+            exclusive: Reuse only an identical, unfinished invocation.
 
         Returns:
             task_id: Unique identifier for the background task.
         """
-        task_id = f"bg-{skill_name}-{int(time.time() * 1000) % 100000}"
-        future = self._pool.submit(executor_fn, skill_name, params)
-
-        task = BackgroundTask(
-            task_id=task_id,
-            skill_name=skill_name,
-            params=params,
-            future=future,
-            start_time=time.time(),
-            description=description or f'Background: {skill_name}',
-            estimated_seconds=estimated_seconds,
-        )
-
-        # Attach completion callback for auto-caching results
-        future.add_done_callback(lambda f: self._on_complete(task_id, f))
-
+        task_id = f"bg-{skill_name}-{uuid.uuid4().hex}"
+        params = copy.deepcopy(params)
         with self._lock:
-            self._tasks[task_id] = task
+            if exclusive:
+                for task in self._tasks.values():
+                    if (task.skill_name == skill_name and not task.is_done
+                            and parameters_match(task.params, params)):
+                        return task.task_id
+            if len(self._tasks) >= self.max_pending:
+                raise RuntimeError('Background task capacity reached; collect completed results before submitting')
+            future = self._pool.submit(executor_fn, skill_name, params)
+            self._tasks[task_id] = BackgroundTask(
+                task_id=task_id, skill_name=skill_name, params=params, future=future,
+                start_time=time.time(), description=description or f'Background: {skill_name}',
+                estimated_seconds=estimated_seconds,
+            )
 
         logger.info("Background task submitted: %s (%s)", task_id, skill_name)
         return task_id
 
-    def _on_complete(self, task_id: str, future: concurrent.futures.Future):
-        """Cache result when background task completes."""
-        try:
-            result = future.result()
-        except Exception as e:
-            result = {'error': str(e), 'traceback': traceback.format_exc()}
-
+    def wait_result(self, task_id: str, timeout: float) -> dict:
+        """Bound the caller's wait; running Python threads cannot be forcibly killed."""
         with self._lock:
-            self._completed_results[task_id] = result
-
-        logger.info("Background task completed: %s", task_id)
+            task = self._tasks.get(task_id)
+        if task is None:
+            return {'error': f'No task with id: {task_id}'}
+        try:
+            task.future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            return {'error': f'Tool wait timeout after {timeout}s; execution remains tracked',
+                    'status': 'running', 'task_id': task_id, 'may_still_be_running': True,
+                    'hint': 'Poll check_background_tasks and collect_background_result; do not restart this work'}
+        except Exception:
+            pass  # collect_result preserves the worker exception as a diagnostic.
+        return self.collect_result(task_id)
 
     def check_status(self, task_id: str = None) -> Any:
         """Check status of one or all background tasks.
@@ -448,10 +480,6 @@ class BackgroundTaskManager:
         with self._lock:
             task = self._tasks.get(task_id)
             if not task:
-                # Check completed results cache
-                cached = self._completed_results.pop(task_id, None)
-                if cached is not None:
-                    return cached
                 return {'error': f'No task with id: {task_id}'}
 
             if not task.is_done:
@@ -463,12 +491,10 @@ class BackgroundTaskManager:
                 }
 
             # Task is done — extract result and clean up
-            result = self._completed_results.pop(task_id, None)
-            if result is None:
-                try:
-                    result = task.future.result()
-                except Exception as e:
-                    result = {'error': str(e)}
+            try:
+                result = task.future.result()
+            except Exception as e:
+                result = {'error': str(e)}
 
             del self._tasks[task_id]
 
@@ -487,14 +513,17 @@ class BackgroundTaskManager:
                 return {'error': f'No task with id: {task_id}'}
             if task.is_done:
                 return {'status': 'already_completed'}
-            cancelled = task.future.cancel()
-            if cancelled:
-                del self._tasks[task_id]
-            return {'cancelled': cancelled, 'task_id': task_id}
+        # Future callbacks can run synchronously during cancel; never hold our lock.
+        cancelled = task.future.cancel()
+        if cancelled:
+            with self._lock:
+                self._tasks.pop(task_id, None)
+        return {'cancelled': cancelled, 'task_id': task_id,
+                'reason': 'cancelled_before_start' if cancelled else 'already_running'}
 
     def shutdown(self, wait: bool = False):
         """Shutdown the background thread pool."""
-        self._pool.shutdown(wait=wait)
+        self._pool.shutdown(wait=wait, cancel_futures=not wait)
 
     @property
     def active_count(self) -> int:

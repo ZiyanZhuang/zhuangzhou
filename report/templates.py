@@ -1589,7 +1589,7 @@ def build_md_report(results: dict, output_path: str = None,
             f'force field and {water_model} explicit solvent model at {temperature} K and '
             f'{pressure} bar. The system comprised {n_atoms} atoms in a {box_type} periodic '
             f'boundary cell. Structural analysis revealed a backbone RMSD of {rmsd_str}, '
-            f'indicating a {'stable' if isinstance(rmsd_mean, float) and rmsd_mean < 0.3 else 'dynamic'} '
+            f"indicating a {'stable' if isinstance(rmsd_mean, float) and rmsd_mean < 0.3 else 'dynamic'} "
             f'protein fold over the course of the simulation. The radius of gyration converged '
             f'to {rg_str}, confirming preserved global compactness.{coord_summary} '
             f'These results provide a quantitative basis for understanding the conformational '
@@ -3891,7 +3891,7 @@ def _build_docking_zh_doc(results: dict, output_path: str,
         doc.paragraph(
             f'氢键相互作用是极性配体与蛋白质结合的主要驱动力之一，'
             f'本研究中观察到的{len(h_bonds)}个氢键为结合亲和力的主要贡献。'
-            f'{'辅因子' + cof_str + "直接参与配体结合网络，是活性位点不可忽视的相互作用伙伴。" if cofactors else ""}'
+            f"{'辅因子' + cof_str + '直接参与配体结合网络，是活性位点不可忽视的相互作用伙伴。' if cofactors else ''}"
         )
         doc.paragraph(
             f'需要指出的是，计算对接方法固有的局限性包括：'

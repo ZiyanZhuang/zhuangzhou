@@ -20,6 +20,14 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+def _tools_unsupported(message: str) -> bool:
+    text = message.lower()
+    return any(phrase in text for phrase in (
+        'does not support tools', 'tools are not supported', 'tool use is not supported',
+        'tool calling is not supported', 'unsupported parameter: tools',
+    ))
+
+
 # ---------------------------------------------------------------------------
 # Response types
 # ---------------------------------------------------------------------------
@@ -285,6 +293,11 @@ class OpenAICompatibleBackend(LLMBackend):
                     if block.get('type') == 'text':
                         text_parts.append(block.get('text', ''))
                     elif block.get('type') == 'tool_use':
+                        if not self.supports_tools:
+                            text_parts.append('Action: ' + json.dumps({
+                                'name': block.get('name', ''), 'input': block.get('input', {}),
+                            }))
+                            continue
                         tool_calls.append({
                             'id': block.get('id', ''),
                             'type': 'function',
@@ -342,7 +355,7 @@ class OpenAICompatibleBackend(LLMBackend):
                 max_tokens=8192
             )
             if not resp.choices:
-                return LLMResponse(text="[API Error] Empty response (no choices)", stop_reason="error", tokens_used=0)
+                return LLMResponse(text="[API Error] Empty response (no choices)", stop_reason="error")
             choice = resp.choices[0]
             tool_calls = []
             if choice.message and hasattr(choice.message, 'tool_calls') and choice.message.tool_calls:
@@ -367,7 +380,7 @@ class OpenAICompatibleBackend(LLMBackend):
             )
         except Exception as e:
             err_msg = str(e).lower()
-            if "does not support tools" in err_msg or "400" in err_msg:
+            if oai_tools and _tools_unsupported(err_msg):
                 if self.supports_tools:
                     logger.warning("%s does not support tools, falling back to manual mode.", self.model)
                     self.supports_tools = False
@@ -393,19 +406,23 @@ class OpenAICompatibleBackend(LLMBackend):
 
         full_msgs = [{'role': 'system', 'content': system}] + self._convert_messages(messages)
         
+        stream = None
+        finished = False
         try:
             stream = self.client.chat.completions.create(
                 model=self.model,
                 messages=full_msgs,
                 tools=oai_tools,
                 stream=True,
+                max_tokens=8192,
                 stream_options={"include_usage": True}
             )
             
             tool_accum = {}
             for chunk in stream:
+                if chunk.usage:
+                    yield ('usage', {'input': chunk.usage.prompt_tokens, 'output': chunk.usage.completion_tokens})
                 if not chunk.choices:
-                    if chunk.usage: yield ('usage', {'input': chunk.usage.prompt_tokens, 'output': chunk.usage.completion_tokens})
                     continue
                 
                 delta = chunk.choices[0].delta
@@ -424,6 +441,7 @@ class OpenAICompatibleBackend(LLMBackend):
                             tool_accum[idx]['parts'].append(fn.arguments)
                 
                 if chunk.choices[0].finish_reason:
+                    finished = True
                     for idx in sorted(tool_accum.keys()):
                         data = tool_accum[idx]
                         try: args = json.loads("".join(data['parts']))
@@ -432,9 +450,11 @@ class OpenAICompatibleBackend(LLMBackend):
                             args = {"_parse_error": "".join(data['parts'])}
                         yield ('tool_call', ToolCallRequest(id=data['id'], name=data['name'], arguments=args))
                     yield ('done', chunk.choices[0].finish_reason)
+            if not finished:
+                raise ValueError('Stream ended before a finish reason was received')
         except Exception as e:
             err_msg = str(e).lower()
-            if "does not support tools" in err_msg or "400" in err_msg:
+            if oai_tools and _tools_unsupported(err_msg):
                 if self.supports_tools:
                     logger.warning("%s does not support tools (stream), falling back to manual mode.", self.model)
                     self.supports_tools = False
@@ -445,6 +465,10 @@ class OpenAICompatibleBackend(LLMBackend):
             logger.error("%s Stream error: %s", self.backend_name, e)
             yield ('text', f"[Stream Error] {e}")
             yield ('done', 'error')
+        finally:
+            close = getattr(stream, 'close', None)
+            if callable(close):
+                close()
 
 
 # ---------------------------------------------------------------------------
