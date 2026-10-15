@@ -58,8 +58,9 @@ must be identified separately from deterministic tests and mocks.
   exceptions, and used the same explicit failure semantics across batches/status.
 - Replaced per-call waiting thread pools with the existing bounded task manager.
   Wait timeout returns a tracked, possibly-running task, never claims the thread
-  was killed. Unsafe skills serialize; duplicate running unsafe skills reuse the
-  tracked task. Disk/log/router failures cannot erase a completed computation.
+  was killed. Unsafe skills serialize; identical running unsafe invocations reuse
+  the tracked task (input identity corrected during independent review below).
+  Disk/log/router failures cannot erase a completed computation.
 - Backend regressions: empty choices, generic 400 fallback, unfinished stream,
   stream closure, output budget, usage on final choice, manual fallback history.
   Native-mode text examples no longer execute as tool calls.
@@ -114,3 +115,65 @@ must be identified separately from deterministic tests and mocks.
 - First-party syntax scan: 279 tracked Python files, zero syntax failures;
   third-party vendored engines/converter excluded. CLI `python -m zhuangzhou
   --help` passed. Final comprehensive regression and review still pending.
+
+## Round 9 — Scientific I/O and native workflow connections
+
+- Saved ESM results now reject missing files, invalid/NaN/Inf scores, inconsistent
+  identifiers, conflicting model scores and inconsistent reference residues.
+  Aggregation formula and low-level list API remain unchanged. The registered
+  `esm2_load` skill returns structured mutations and sources; workflow references
+  now consume that dictionary correctly.
+- Vina runs use unique output directories, validated grids/budgets and explicit
+  return-code/output checks. A zero exit without a current nonempty pose and
+  finite score table fails. Fixtures exercise this boundary; no Vina run occurred.
+- SmartDocking forwards the requested center/box, propagates backend/PLIP failure,
+  and reports the actual docked complex. Docking template now feeds that artifact
+  to PLIP rather than using an analysis complex made from the original ligand.
+- KG read-modify-write access counting now shares a process lock with append;
+  deterministic concurrent evidence preservation test passes. History readers
+  share malformed-record handling and use bounded retained rows/session indexes.
+- Offline tests suppress only the global deferred KG model worker, preventing
+  model activity after a fixture ends. Direct queue/storage tests remain active.
+
+## Round 10 — Independent review and corrected task identity
+
+- Two independent, read-only reviewers inspected fixed commit `dc7db85` against
+  the initial baseline. Both reproduced two consequential identity defects:
+  different inputs reused one unsafe task; unrelated same-tool success erased a
+  failure, while successful background collection failed to resolve wait timeout.
+- New regression run: **4 failed / 50 passed**. Fixed by comparing input
+  snapshots, retaining errors per invocation, matching same-input retries and
+  linking collection to its task ID. Unknown array/object values never deduplicate.
+  Unsafe execution remains serialized; different inputs queue independently.
+- Reviewer also identified incomplete reference-residue checks across different
+  substitutions at one position. Added position-level validation and regression.
+- Follow-up `7d6971a`: targeted **54 passed**, then full **204 passed,
+  5 skipped, 13 legacy return-value warnings in 7.47s**. Critical lint passes.
+- Spec re-review found Python equality conflating nested bool/int values. Its
+  added regression failed, then passed after recursive JSON type identity in
+  `d609050`; related tests **56 passed**. This prevents reuse bypassing validation.
+- Benchmark repeated after final history-reader changes: same 100,000 rows and
+  identical outputs; baseline **0.795544s / 85,602,138 peak Python bytes**, current
+  **0.529168s / 64,949 bytes**. One local synthetic run; no native/GPU measurement.
+- Standards independent privacy inspection of baseline through `7d6971a`: 2,681
+  added lines decode as strict UTF-8; no private paths, common real-token formats,
+  replacement characters/BOM/NUL or known mojibake markers. One credential-like
+  assignment is a mock test placeholder. No secret sources or ignored files read.
+- Final code review, report, local complete validation and remote CI/publication
+  are tracked below before completion is claimed.
+
+## Final local verification
+
+- Final full suite: **205 passed / 5 skipped / 13 legacy warnings, 7.19s**.
+  Critical lint, CLI smoke, pip check and diff whitespace checks passed.
+- AST scan: **296 first-party tracked Python files, zero syntax errors**. Excludes
+  vendored SmartDocking engines and CGenFF converter; an expanded exploratory
+  scan encountered the converter's unchanged Python 2 legacy script, not a new
+  first-party syntax defect.
+- All 51 changed files decode strictly as UTF-8. New-line privacy scan found no
+  private home/credential locations, common real-token literals or encoding markers.
+- Independent Spec review of `d609050`: **56 passed**, no further actionable
+  finding. Independent Standards review and tracked-diff privacy scan passed.
+- Refreshed remote main still equals the baseline. Existing Git credential is
+  usable for GitHub maintenance through a noninteractive child environment;
+  no token printed or written to tracked files. Remote CI/publication follows.

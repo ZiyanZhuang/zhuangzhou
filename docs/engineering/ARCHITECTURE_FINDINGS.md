@@ -2,7 +2,7 @@
 
 ## Execution contracts
 
-The active NLP loop, JSON workflow engine, public agent facade and legacy
+At baseline, the active NLP loop, JSON workflow engine, public agent facade and legacy
 conversation engine are separate entry paths. They share the skill registry but
 do not yet share consistent failure semantics. A skill can return an error dict
 without raising; the workflow currently treats that as a successful output.
@@ -13,7 +13,7 @@ inputs. Fix the existing engine and registry rather than adding an orchestrator.
 
 ## Review provenance
 
-Supervisor model review currently defaults to passed when unavailable. Tool
+At baseline, supervisor model review defaulted to passed when unavailable. Tool
 execution success, structural output validity and scientific validation need to
 remain distinct. Specific implementation and compatibility impacts pending tests.
 
@@ -66,3 +66,16 @@ new infrastructure is introduced.
   this iteration hardens shared boundaries without claiming full runtime unification.
 - External simulation readiness, scientific force-field choices and real GPU
   throughput remain unverified. No live remote compute target was modified.
+
+## Input and result identity
+
+Independent review found that skill-name-only reuse can give one ligand's result
+to another request, and skill-name-only error tracking can hide an unrelated
+failure. Reuse now requires equal JSON input snapshots including scalar types;
+unknown objects never deduplicate. Unresolved failures retain call identity and
+task IDs, so only the same-input retry or collection of the original task resolves
+that failure. Different unsafe calls queue through the existing serial boundary.
+
+The native docking template now consumes the backend's docked complex path.
+Vina output checks establish execution/artifact validity only. A finite affinity
+and a nonempty pose do not establish binding accuracy or biological activity.
