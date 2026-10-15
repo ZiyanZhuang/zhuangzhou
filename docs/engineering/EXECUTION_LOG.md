@@ -198,3 +198,18 @@ must be identified separately from deterministic tests and mocks.
   Critical lint now includes report and explicitly targets Python 3.10; it passes.
   Privacy/UTF-8 scan: all 52 changed files pass, zero added-line pattern findings.
 - Independent follow-up review and replacement remote CI are required below.
+
+## Remote verification and delivery (12:09 Asia/Shanghai)
+
+- Both independent reviewers approved `00a931b`. Complete report AST before and
+  after the quoting fix is identical, confirming unchanged scientific text/logic.
+  New lines pass independent privacy/encoding checks; all 52 changed files are UTF-8.
+- Code head `00a931b329866a574202a64ea2455922299a9a44` passed all four checks:
+  [push run](https://github.com/ZiyanZhuang/zhuangzhou/actions/runs/38679796199)
+  and [PR run](https://github.com/ZiyanZhuang/zhuangzhou/actions/runs/38679799941),
+  each Ubuntu/Python 3.10 and Windows/Python 3.12. Each job includes complete
+  offline tests, built-wheel checks, critical lint and CLI smoke.
+- Clean-built wheel: 284 entries, 1,070,115 bytes; local environment/debug paths,
+  credential-like paths and sensitive extensions absent from its member list.
+- Only this evidence documentation changes after the tested code. Final PR head
+  checks and merge are verified directly in GitHub before the completion response.

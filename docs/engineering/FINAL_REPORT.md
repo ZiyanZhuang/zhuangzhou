@@ -1,7 +1,7 @@
 # Engineering final report — 2026-10-15
 
 基线：`b55b88ca75f5ab12dd299bb4e7ac49a1ba78c177`。
-工作分支：`codex/runtime-hardening`。工程提交：`dc7db85`、`7d6971a`、`d609050`。
+工作分支：`codex/runtime-hardening`。工程提交：`dc7db85`、`7d6971a`、`d609050`、`00a931b`。
 本轮预算上限 7 小时；实际执行时间以执行日志为准，不把预算写成已消耗时间。
 
 ## A. Executive Summary
@@ -137,3 +137,9 @@ vendored engines 和 CGenFF converter（其中保留旧 Python 2 脚本）。
 - GitHub 现有认证已验证仓库写入/维护权限；上传后两平台 CI 结果记录在执行日志中。
 - 首次远端 CI 发现 Python 3.10 报告导入及干净 Windows 构建依赖问题，已实际修复；
   初次失败保留在日志，没有以本地绿色结果代替跨平台验证。
+- 代码提交 `00a931b` 的 [push CI](https://github.com/ZiyanZhuang/zhuangzhou/actions/runs/38679796199)
+  及 [PR CI](https://github.com/ZiyanZhuang/zhuangzhou/actions/runs/38679799941) 全部成功：
+  Ubuntu/Python 3.10、Windows/Python 3.12 两平台的 pytest、Wheel、关键 lint、CLI 均通过。
+  后续仅补充文档证据，最终提交的检查状态可在 [PR #1](https://github.com/ZiyanZhuang/zhuangzhou/pull/1) 核验。
+- 干净环境构建的 Wheel 含 284 个条目、约 1.07 MB；未发现本地环境、调试目录、
+  日志或敏感扩展名。最终源码未包含本地调试凭据和运行产物。
