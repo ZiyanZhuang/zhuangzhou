@@ -246,3 +246,38 @@ def test_successful_collection_resolves_original_wait_timeout(executor):
         final = executor.run_loop('timeout collection fixture', max_iterations=3)
     assert 'incomplete' not in final.lower()
     assert not executor._checkpoint.has_pending()
+
+
+@pytest.mark.parametrize('stop_reason,phase', [('stop', 'done'), ('error', 'error'), ('length', 'error')])
+def test_monitor_phase_matches_model_completion(executor, stop_reason, phase):
+    from zhuangzhou.ui.core import ZZStatus
+    monitor = ZZStatus()
+    with patch.object(executor, '_stream_llm_response', return_value=LLMResponse(text='fixture', stop_reason=stop_reason)):
+        executor.run_loop('UI state fixture', monitor=monitor, max_iterations=1)
+    assert monitor.phase == phase
+
+
+def test_high_risk_confirmation_marks_monitor_waiting(executor):
+    from zhuangzhou.ui.core import ZZStatus
+    register(executor, risk='high')
+    monitor = ZZStatus()
+    with patch.object(executor, '_stream_llm_response', return_value=LLMResponse(
+            tool_calls=[ToolCallRequest('pending', 'calculate', {})])):
+        executor.run_loop('confirmation UI fixture', monitor=monitor, max_iterations=1)
+    assert monitor.phase == 'wait'
+
+
+def test_streamed_prose_is_corrected_when_execution_remains_failed(executor):
+    from zhuangzhou.ui.core import ZZStatus
+    register(executor, {'error': 'injected fixture failure'})
+    monitor = ZZStatus()
+    responses = iter([LLMResponse(tool_calls=[ToolCallRequest('fail', 'calculate', {})]),
+                      LLMResponse(text='Model claims completion', stop_reason='stop')])
+    def response(*args):
+        executor._did_stream_final = True
+        return next(responses)
+    with patch.object(executor, '_stream_llm_response', side_effect=response), \
+         patch('zhuangzhou.nlp.agent.ZZInterface.display_message') as display:
+        executor.run_loop('failed streamed fixture', monitor=monitor, max_iterations=2)
+    assert monitor.phase == 'error'
+    assert any('[Execution incomplete]' in str(call) for call in display.call_args_list)

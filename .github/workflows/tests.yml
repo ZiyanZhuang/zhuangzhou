@@ -28,6 +28,6 @@ jobs:
       - name: Offline unit, integration, failure injection and installed-wheel tests
         run: python -m pytest -q -ra
       - name: Critical syntax and name checks
-        run: python -m ruff check nlp skills workflow memory utils tests tools.py smartdocking/vina.py smartdocking/pipeline.py report --select E9,F63,F7,F82 --target-version py310
+        run: python -m ruff check ui app.py commands/status.py nlp skills workflow memory utils tests tools.py smartdocking/vina.py smartdocking/pipeline.py report --select E9,F63,F7,F82 --target-version py310
       - name: CLI smoke
         run: python -m zhuangzhou --help

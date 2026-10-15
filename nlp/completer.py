@@ -37,6 +37,9 @@ def _get_skill_names():
 class ZhuangzhouCompleter(Completer):
     """Custom completer for Zhuangzhou slash commands and skill names."""
 
+    def __init__(self, commands=None):
+        self.commands = dict(commands or {})
+
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor
 
@@ -49,12 +52,14 @@ class ZhuangzhouCompleter(Completer):
                 trigger_fragment = text.lower()
 
                 # A1. Built-in slash commands first
-                for trigger in slash_manager.commands.keys():
+                commands = {**self.commands, **{trigger: cmd.description
+                            for trigger, cmd in slash_manager.commands.items()}}
+                for trigger, description in commands.items():
                     if trigger.startswith(trigger_fragment):
                         yield Completion(
                             trigger,
                             start_position=-len(text),
-                            display_meta=slash_manager.commands[trigger].description
+                            display_meta=description
                         )
 
                 # A2. Skill names (without /) — match by first letters after /

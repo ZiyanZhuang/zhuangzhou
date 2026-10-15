@@ -197,7 +197,7 @@ def build_context_bar(status: dict) -> Text:
         accent = ZZTheme.CYAN
 
     line = Text()
-    line.append("  ctx ", style=f"bold {accent}")
+    line.append("  ctx~ ", style=f"bold {accent}")
     line.append(format_tokens(estimated), style=f"bold {accent}")
     line.append("/", style=ZZTheme.DIM)
     line.append(format_tokens(limit), style=f"bold {accent}")
@@ -255,7 +255,8 @@ def build_context_hint(status: dict) -> Optional[Text]:
 
 
 def build_response_header(
-    status: dict, elapsed: float = 0.0, input_tokens: int = 0, output_tokens: int = 0
+    status: dict, elapsed: float = 0.0, input_tokens: int = 0, output_tokens: int = 0,
+    usage_estimated: bool = False,
 ) -> Text:
     """Build the assistant panel header with time, token usage, context, and model."""
     ratio = float(status.get("usage_ratio", 0.0) or 0.0)
@@ -279,13 +280,13 @@ def build_response_header(
     line.append(format_elapsed(elapsed or 0.0), style=f"bold {ZZTheme.GOLD}")
     if total_tokens > 0:
         line.append("  │  token ", style=ZZTheme.DIM)
-        line.append(format_tokens(total_tokens), style=f"bold {ZZTheme.CYAN}")
+        line.append(('~' if usage_estimated else '') + format_tokens(total_tokens), style=f"bold {ZZTheme.CYAN}")
         line.append(" (", style=ZZTheme.DIM)
         line.append(f"in:{format_tokens(int(input_tokens or 0))}", style=ZZTheme.DIM)
         line.append(" ", style=ZZTheme.DIM)
         line.append(f"out:{format_tokens(int(output_tokens or 0))}", style=ZZTheme.DIM)
         line.append(")", style=ZZTheme.DIM)
-    line.append("  │  ctx ", style=ZZTheme.DIM)
+    line.append("\nctx~ ", style=ZZTheme.DIM)
     line.append(format_tokens(estimated), style=f"bold {accent}")
     line.append("/", style=ZZTheme.DIM)
     line.append(format_tokens(limit), style=f"bold {accent}")
@@ -396,6 +397,7 @@ class ZZStatus:
         self.total_tokens = 0
         self.input_tokens = 0
         self.output_tokens = 0
+        self.usage_estimated = True
         self.active_action = action
         self.phase = "think"
         self._live = None
@@ -450,13 +452,14 @@ class ZZStatus:
         # Token count in K units
         if display_tok > 0:
             footer.append("  │  ", style=ZZTheme.DIM)
-            footer.append(format_tokens(display_tok), style=ZZTheme.CYAN)
+            approximate = self.usage_estimated or display_tok != self.total_tokens
+            footer.append(('~' if approximate else '') + format_tokens(display_tok), style=ZZTheme.CYAN)
             footer.append(" tokens", style="dim")
             # Speed
-            if elapsed > 0.5:
-                speed = format_speed(display_tok, elapsed)
+            if elapsed > 0.5 and self.output_tokens > 0:
+                speed = format_speed(self.output_tokens, elapsed)
                 if speed:
-                    footer.append(f"  {speed}", style="dim")
+                    footer.append(f"  out {'~' if self.usage_estimated else ''}{speed}", style="dim")
 
         # Active action
         if self.active_action:
@@ -478,6 +481,8 @@ class ZZStatus:
         output_tokens: int = 0,
     ):
         with self._lock:
+            if tokens or input_tokens or output_tokens:
+                self.usage_estimated = True
             if tokens:
                 self.total_tokens += tokens
                 self._target_tokens = self.total_tokens
@@ -491,9 +496,10 @@ class ZZStatus:
                 self.phase = phase
             # No need to manually push to Live — __rich_console__ handles it
 
-    def set_usage(self, input_tokens: int = 0, output_tokens: int = 0):
+    def set_usage(self, input_tokens: int = 0, output_tokens: int = 0, *, estimated: bool = False):
         """Replace counters with exact usage reported by the backend."""
         with self._lock:
+            self.usage_estimated = estimated
             self.input_tokens = int(input_tokens or 0)
             self.output_tokens = int(output_tokens or 0)
             self.total_tokens = self.input_tokens + self.output_tokens
@@ -517,6 +523,10 @@ class ZZStatus:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            interrupted = issubclass(exc_type, KeyboardInterrupt)
+            self.phase = 'wait' if interrupted else 'error'
+            self.active_action = 'Interrupted' if interrupted else 'Failed'
         if self._live:
             self._live.stop()
         self._print_summary()
@@ -528,9 +538,12 @@ class ZZStatus:
         summary = Text()
         summary.append("  └─ ", style=ZZTheme.DIM)
 
-        icon = PHASE_ICONS["done"] if self.phase != "error" else PHASE_ICONS["error"]
-        icon_style = ZZTheme.GREEN if icon == "✓" else ZZTheme.RED
+        phase = self.phase if self.phase in ('error', 'wait') else 'done'
+        icon = PHASE_ICONS[phase]
+        icon_style = {'done': ZZTheme.GREEN, 'wait': ZZTheme.GOLD, 'error': ZZTheme.RED}[phase]
         summary.append(f"{icon} ", style=icon_style)
+        if phase in ('error', 'wait'):
+            summary.append(f'{self.active_action}  │  ', style=icon_style)
 
         # Time
         summary.append(format_elapsed(elapsed), style=ZZTheme.GOLD)
@@ -538,21 +551,18 @@ class ZZStatus:
         # Tokens breakdown — only show in/out detail when both have real values
         if self.total_tokens > 0:
             summary.append("  │  ", style=ZZTheme.DIM)
-            summary.append(format_tokens(self.total_tokens), style=ZZTheme.CYAN)
+            summary.append(('~' if self.usage_estimated else '') + format_tokens(self.total_tokens), style=ZZTheme.CYAN)
             summary.append(" tokens", style="dim")
-            # Show breakdown only when we have at least one non-zero component
-            if self.input_tokens > 0 and self.output_tokens > 0:
+            if self.input_tokens > 0 or self.output_tokens > 0:
                 summary.append(
                     f" (in:{format_tokens(self.input_tokens)}"
                     f" out:{format_tokens(self.output_tokens)})",
                     style="dim",
                 )
-            elif self.output_tokens > 0:
-                summary.append(f" (out:{format_tokens(self.output_tokens)})", style="dim")
-            if elapsed > 0.5:
-                speed = format_speed(self.total_tokens, elapsed)
+            if elapsed > 0.5 and self.output_tokens > 0:
+                speed = format_speed(self.output_tokens, elapsed)
                 if speed:
-                    summary.append(f"  {speed}", style="dim")
+                    summary.append(f"  out {'~' if self.usage_estimated else ''}{speed}", style="dim")
 
         console.print(summary)
 
@@ -674,7 +684,8 @@ class StreamRenderer:
             elapsed = time.perf_counter() - self.monitor.start_time
             input_tokens = int(getattr(self.monitor, "input_tokens", 0) or 0)
             output_tokens = int(getattr(self.monitor, "output_tokens", 0) or 0)
-        header = build_response_header(status, elapsed, input_tokens, output_tokens)
+        header = build_response_header(status, elapsed, input_tokens, output_tokens,
+                                       usage_estimated=bool(getattr(self.monitor, 'usage_estimated', False)))
         footer = build_response_footer(status)
         body = Group(header, build_panel_separator(), md, Text(""), footer)
         if self.show_panel:
@@ -755,36 +766,37 @@ class ZZInterface:
         ]
 
         logo_width = max(len(line) for line in zhuang)
-        total_width = logo_width + 40
+        from zhuangzhou import __version__
 
-        console.print("")
-        for row in zhuang:
-            console.print(get_gradient_text(row, total_width))
-
-        version = "0.8.6"
-        date = datetime.now().strftime("%Y-%m-%d")
+        started = datetime.now().strftime("%Y-%m-%d %H:%M")
         cwd = os.getcwd()
         if len(cwd) > 40:
             cwd = "..." + cwd[-37:]
 
-        meta = [
-            f"   庄周 v{version}",
-            f"   Router → Fixed|Plan|Direct",
-            f"   Date: {date}",
-            f"   Path: {cwd}",
-        ]
-        for i, row in enumerate(zhou):
-            content = row
-            if i < len(meta):
-                content += " " * (logo_width - len(row)) + meta[i]
-            console.print(get_gradient_text(content, total_width))
+        metadata = Table.grid(padding=(0, 1), expand=True)
+        metadata.add_column(style=ZZTheme.DIM, width=10, no_wrap=True)
+        metadata.add_column(style=f'bold {ZZTheme.GOLD}', ratio=1, no_wrap=True, overflow='ellipsis')
+        for label, value in [('Version:', f'v{__version__}'), ('Interface:', 'Commands + Agent'),
+                             ('Started:', started), ('Path:', cwd)]:
+            metadata.add_row(label, Text(value))
+
+        console.print('')
+        if console.width >= 100:
+            banner = Table.grid(padding=(0, 3), expand=True)
+            banner.add_column(width=logo_width, no_wrap=True)
+            banner.add_column(ratio=1)
+            banner.add_row(Group(*(get_gradient_text(row, logo_width) for row in zhuang + zhou)), metadata)
+            console.print(banner)
+        else:
+            console.print(get_gradient_text('  庄周 · Zhuangzhou', 20))
+            console.print(metadata)
 
         # Tagline with gradient midpoint color
         mid_r, mid_g, mid_b = lerp_rgb((0, 229, 255), (255, 193, 7), 0.5)
         tag_style = Style(color=f"rgb({mid_r},{mid_g},{mid_b})", italic=True, dim=True)
         console.print(
             Text(
-                "\n  Rational Enzyme Engineering  |  Chemistry over consensus  |  LLM as engine, not oracle.",
+                "\n  Rational Enzyme Engineering\n  Chemistry over consensus · LLM as engine, not oracle.",
                 style=tag_style,
             )
         )
@@ -800,7 +812,7 @@ class ZZInterface:
         )
 
         # Thin separator
-        console.print(Text("  " + "─" * 60, style="dim"))
+        console.print(Text("  " + "─" * min(60, max(0, console.width - 2)), style="dim"))
         console.print("")
 
     @classmethod
@@ -839,7 +851,8 @@ class ZZInterface:
                 elapsed = time.perf_counter() - monitor.start_time
                 input_tokens = int(getattr(monitor, "input_tokens", 0) or 0)
                 output_tokens = int(getattr(monitor, "output_tokens", 0) or 0)
-            header = build_response_header(status, elapsed, input_tokens, output_tokens)
+            header = build_response_header(status, elapsed, input_tokens, output_tokens,
+                                           usage_estimated=bool(getattr(monitor, 'usage_estimated', False)))
             footer = build_response_footer(status)
             assistant_panel = Panel(
                 Group(header, build_panel_separator(), md, Text(""), footer),

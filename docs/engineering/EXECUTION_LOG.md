@@ -213,3 +213,23 @@ must be identified separately from deterministic tests and mocks.
   credential-like paths and sensitive extensions absent from its member list.
 - Only this evidence documentation changes after the tested code. Final PR head
   checks and merge are verified directly in GitHub before the completion response.
+
+## 12:50–13:13 — Follow-up: old CI notification and real CMD UI
+
+- Re-queried GitHub: `997e517` PR run remains a historical failure; `00a931b`,
+  `1eec5db` and merged main `ccbe823` runs succeeded. No failure history deleted.
+- CMD entry point reproduced 80-column banner wrap and misleading metadata.
+  New tests first reported 14 failures; additional call-chain tests exposed four
+  remaining errors after the first fix. Repaired at shared UI/runtime boundaries.
+- Added responsive banner, real version/start time, help/completion consistency,
+  local commands without model initialization, explicit failures and accurate
+  output-token rate/estimate labels. Preserved registered skill Agent dispatch.
+- Real CMD/PTY smoke ran startup, version, help, status, unknown command, missing
+  backend confirmation and clean quit, using isolated state and no model network.
+  Corrected an over-broad smoke isolation rule that blocked internal socketpair.
+- Actual renderer previews at 60/80/100/120 columns were inspected; these are
+  fixtures, not native CMD screenshots or scientific results. Details and limits
+  are in [UI_AUDIT.md](UI_AUDIT.md).
+- Local full suite: **237 passed / 5 skipped / 13 existing warnings, 7.12s**;
+  py310 critical lint including UI/App/status and diff whitespace checks pass.
+- Independent review, privacy/UTF-8 check and remote CI follow before publishing.
