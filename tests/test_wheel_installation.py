@@ -13,9 +13,10 @@ import pytest
 def wheel(tmp_path_factory):
     directory = tmp_path_factory.mktemp('wheel')
     root = Path(__file__).resolve().parents[1]
-    subprocess.run([sys.executable, '-m', 'pip', 'wheel', str(root), '--no-deps',
-                    '--no-build-isolation', '--wheel-dir', str(directory)],
-                   check=True, capture_output=True, timeout=90)
+    result = subprocess.run([sys.executable, '-m', 'pip', 'wheel', str(root), '--no-deps',
+                             '--no-build-isolation', '--wheel-dir', str(directory)],
+                            capture_output=True, text=True, timeout=90)
+    assert result.returncode == 0, result.stdout + result.stderr
     return next(directory.glob('*.whl'))
 
 

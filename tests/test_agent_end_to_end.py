@@ -38,6 +38,7 @@ class DeterministicPlanner(LLMBackend):
             return LLMResponse(tool_calls=[ToolCallRequest('report-1', 'generate_report', {
                 'sections': sections, 'output_path': str(self.report_path), 'title': 'Offline integration fixture',
             })])
+        assert 'docx_path' in observation, observation
         assert Path(observation['docx_path']) == self.report_path, observation
         assert self.report_path.is_file()
         return LLMResponse(text='Selection metadata and report recorded; biological performance remains unverified.', stop_reason='stop')

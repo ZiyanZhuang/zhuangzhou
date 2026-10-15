@@ -27,7 +27,7 @@
 | 失败状态 | 错误字典可能标成功；缺失 Review 可能通过 | 显式失败传播；必需 Review 不可用时阻断 |
 | 超时与取消 | 每次建池并等待；队列取消可死锁 | 有界共享池、可跟踪超时、诚实的排队取消 |
 | 输入与结果身份 | 工具名级状态不足 | 参数类型一致才复用；调用和 task ID 关联恢复 |
-| 已安装 Wheel | 缺 CYPamber 和 workflow JSON | 实际构建并脱离 editable finder 验证 |
+| 已安装 Wheel | 缺 CYPamber 和 workflow JSON | 实际构建并脱离 editable finder 验证；干净环境补齐构建依赖 |
 | 科学后端 | 未确认运行条件 | Vina/PLIP/MD/QM/GPU 仍未真实验证 |
 
 测试集合扩大，初始子集与最终全套的分母不同，不据此计算可比通过率。
@@ -60,7 +60,8 @@
 | `smartdocking/*`, `skills/docking.py` | 独立输出目录、当前 pose/分数检查、实际 complex、参数及 PLIP 接通 | 外部进程 fixtures；不声称真实对接验证 |
 | `workflow/templates/*` | ESM 结构引用和实际 docked complex 接通 | 模板小集成验证 |
 | `nlp/tools.py`, `skills/report.py`, `skills/unified.py` | 单一 schema 转换，结构化数组/JSON 报告支持 | schema 与真实 DOCX 测试 |
-| `pyproject.toml`, CI, `tests/*` | 包数据、report extra、离线隔离与两平台 CI | Wheel、CLI、参数、失败注入及 E2E |
+| `pyproject.toml`, CI, `tests/*` | 包数据、report/dev extras、离线隔离与两平台 CI | Wheel、干净 venv、CLI、参数、失败注入及 E2E |
+| `report/templates.py` | 修复两处 Python 3.12 专属 f-string，恢复声明的 Python 3.10 支持 | py310 Ruff 先失败后通过；E2E 和真实 CI |
 | `skills/workflow_skill.py` | 修复状态查询中的缺失 os 导入 | 确定性 status-only 回归 |
 
 兼容性说明：低层 `tools.load_esm2_results` 继续返回列表；注册 Skill `esm2_load`
@@ -85,14 +86,14 @@
 
 ```powershell
 .venv/Scripts/python.exe -m pytest -q -ra
-.venv/Scripts/python.exe -m ruff check nlp skills workflow memory utils tests tools.py smartdocking/vina.py smartdocking/pipeline.py --select E9,F63,F7,F82
+.venv/Scripts/python.exe -m ruff check nlp skills workflow memory utils tests tools.py smartdocking/vina.py smartdocking/pipeline.py report --select E9,F63,F7,F82 --target-version py310
 .venv/Scripts/python.exe -m zhuangzhou --help
 .venv/Scripts/python.exe -m pip check
 .venv/Scripts/python.exe scripts/benchmark_history.py --entries 100000
 git diff --check
 ```
 
-最终本地完整回归 205 passed / 5 skipped / 13 warnings（7.19s），独立复核相关
+最终本地完整回归 205 passed / 5 skipped / 13 warnings（7.31s），独立复核相关
 56 项通过。Wheel 测试执行真实 `pip wheel --no-deps --no-build-isolation`，
 解包后禁用 editable finder，验证模块、4 个模板及 parts 数据。关键 lint、CLI、
 依赖一致性与最终 296 个第一方 Python 文件 AST 扫描通过。AST 扫描排除第三方
@@ -128,9 +129,11 @@ vendored engines 和 CGenFF converter（其中保留旧 Python 2 脚本）。
 
 ## Final delivery verification
 
-- 本地最终全套：205 passed / 5 skipped / 13 warnings，7.19s；关键 lint、CLI、
-  pip check、git diff --check 通过；51 个变更文件严格 UTF-8 解码通过。
+- 本地全套：205 passed / 5 skipped / 13 warnings，7.31s；关键 lint、CLI、
+  pip check、git diff --check 通过；52 个变更文件严格 UTF-8 解码通过。
 - 两位独立审查者已确认原发现修复；Spec 轴最终相关 56 项通过，无新增可操作发现。
 - 独立 Standards 扫描与主代理复查未发现新增私人路径、常见真实凭证格式或编码异常。
   扫描不读取凭据源，不把忽略的本地调试内容纳入提交；提交使用公开 noreply 身份。
 - GitHub 现有认证已验证仓库写入/维护权限；上传后两平台 CI 结果记录在执行日志中。
+- 首次远端 CI 发现 Python 3.10 报告导入及干净 Windows 构建依赖问题，已实际修复；
+  初次失败保留在日志，没有以本地绿色结果代替跨平台验证。

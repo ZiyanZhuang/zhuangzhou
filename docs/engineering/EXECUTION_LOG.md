@@ -177,3 +177,24 @@ must be identified separately from deterministic tests and mocks.
 - Refreshed remote main still equals the baseline. Existing Git credential is
   usable for GitHub maintenance through a noninteractive child environment;
   no token printed or written to tracked files. Remote CI/publication follows.
+
+## Round 11 — Actual GitHub CI and clean-build recovery
+
+- Pushed reviewed branch and created [PR #1](https://github.com/ZiyanZhuang/zhuangzhou/pull/1).
+  Initial [push CI](https://github.com/ZiyanZhuang/zhuangzhou/actions/runs/38679154465)
+  failed on both platforms; it was not merged.
+- Ubuntu/Python 3.10: **1 failed / 204 passed / 5 skipped**. A pre-existing
+  Python-3.12-only reused-quote f-string in report/templates.py prevented import
+  of all report builders. Targeted py310 Ruff reproduced two such syntax errors;
+  changed quoting without changing generated text or scientific report logic.
+- Windows/Python 3.12: **203 passed / 5 skipped / 2 wheel fixture errors**. A new
+  isolated local Python 3.12 venv reproduced `Cannot import setuptools.build_meta`
+  before installing build tools; after installing setuptools/wheel, the same
+  offline wheel command succeeded. Developer extras now include the already
+  declared build-system requirements so fresh test environments are complete.
+- Wheel fixture and planner E2E now expose actual build/tool diagnostics instead
+  of hiding them behind CalledProcessError/KeyError. Assertions were strengthened.
+- Local full suite remains **205 passed / 5 skipped / 13 warnings, 7.31s**.
+  Critical lint now includes report and explicitly targets Python 3.10; it passes.
+  Privacy/UTF-8 scan: all 52 changed files pass, zero added-line pattern findings.
+- Independent follow-up review and replacement remote CI are required below.
