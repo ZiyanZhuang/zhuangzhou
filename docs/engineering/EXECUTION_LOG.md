@@ -233,3 +233,20 @@ must be identified separately from deterministic tests and mocks.
 - Local full suite: **237 passed / 5 skipped / 13 existing warnings, 7.12s**;
   py310 critical lint including UI/App/status and diff whitespace checks pass.
 - Independent review, privacy/UTF-8 check and remote CI follow before publishing.
+
+## 13:20 — Confirmation review and bounded offline saturation
+
+- Spec review passed; Standards review reproduced a pre-existing UI gap: the App
+  discards the returned confirmation instruction. Added an App-to-Agent regression
+  (failed first), then a literal confirmation panel with full redacted parameters
+  and the precise command. Pending parameters are unchanged and never auto-executed.
+- Repeated real background manager saturation with 1/2/4 workers: 384 accepted
+  submissions, 288 successful fixtures, 72 injected failures, 24 queued cancellations;
+  24 over-capacity attempts rejected. Each batch releases all tracked capacity.
+  Three stress cases pass in 0.16s; these are not live chatbot throughput measurements.
+- A misplaced new test initially caused a collection syntax error; corrected it
+  and reran all tests rather than weakening or excluding the test.
+- Full offline regression: **241 passed / 5 skipped / 13 existing warnings, 7.23s**;
+  critical Ruff checks pass. No additional dependencies or scientific algorithms.
+- User clarified this is a test machine with no existing running installation.
+  Requested ChatGPT bot testing remains endpoint-blocked: no specific bot URL/API.

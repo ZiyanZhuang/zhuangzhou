@@ -1221,6 +1221,12 @@ class AgentExecutor:
             if pending:
                 if monitor:
                     monitor.update(phase='wait', action='Awaiting confirmation')
+                details = []
+                for tc, obs in all_results:
+                    if isinstance(obs, dict) and obs.get('needs_confirmation'):
+                        params = json.dumps(redact_secrets(tc.arguments), ensure_ascii=False, indent=2, default=str)
+                        details.append(f'Skill: {tc.name}\nParameters (credentials redacted):\n{params}\nConfirm: /confirm {tc.name}')
+                ZZInterface.display_message('confirmation', '\n\n'.join(details))
                 self._checkpoint.save(user_message, self.execution_log[turn_log_start:], session_id=self._session_id)
                 return '等待高风险操作确认: ' + ', '.join(f'/confirm {name}' for name in pending)
             consecutive_errors = consecutive_errors + 1 if batch_has_error else 0

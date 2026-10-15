@@ -869,6 +869,10 @@ class ZZInterface:
             console.print(assistant_panel)
             console.print("")
 
+        elif role == 'confirmation':
+            console.print(Panel(Text(content), title='Confirmation required',
+                                border_style=ZZTheme.GOLD, box=ROUNDED, padding=(0, 2)))
+
         elif role == "error":
             error_panel = Panel(
                 Text(content, style="white"),

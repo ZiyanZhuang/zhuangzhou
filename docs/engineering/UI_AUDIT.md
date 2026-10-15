@@ -30,6 +30,7 @@ PR #1 已合并，旧通知不会因后续成功而消失；没有重新运行�
 | `--version` 可能进入 Agent 路径 | `--version` / `-V` / `/version` 本地处理，不构造 App/模型 |
 | 未知命令、错误引号、模型初始化失败可能触发无关模型调用或退出 | 显式诊断并保留提示符；已注册技能的斜杠 Agent 路径保持可用 |
 | 状态摘要在异常和等待确认时也显示绿色成功勾 | 错误显示红色 `✗`，等待/中断显示金色 `◇`；Agent 返回路径同步状态 |
+| 具体确认提示只作为返回值，被主 App 忽略 | 独立审查后补齐一次字面渲染的确认面板：技能、完整脱敏参数与 `/confirm` 命令；不截断待审查的调用参数 |
 | 流式最终文字可能掩盖尚未解决的执行失败 | 最终执行未完成时额外显示带 `Execution incomplete` 的实际结论 |
 | 把输入 + 输出 tokens 除以时间当生成速率 | 速率仅使用输出 tokens；样例 1,600 input / 400 output / 2s 应为 200/s |
 | 估计上下文与流式估计 usage 缺少区分 | `ctx~` 与估计 token 数的 `~`；后端确切 usage 到达后去除估计标记 |
@@ -45,6 +46,7 @@ UI 的 input 计数沿用当前最后一次请求，output 为本轮累计；不
 环境：Windows 11，Python 3.12.14，Rich 15.0.0。当前执行器初始 PATH 未找到裸命令；
 选定本仓库 `.venv/Scripts` 后，`where zhuangzhou` 指向该虚拟环境入口，版本为 0.8.6。
 没有修改系统 PATH 或替换其他 Python 环境。
+用户确认此电脑仅用于测试，尚未日常启动；没有待保留的运行实例或另一个已指定安装环境。
 
 实际通过 CMD 启动真实 console entry point，并在 PTY 内执行：
 
@@ -81,7 +83,7 @@ zhuangzhou
 
 ```text
 python -m pytest -q --disable-warnings
-237 passed, 5 skipped, 13 existing warnings in 7.12s
+241 passed, 5 skipped, 13 existing warnings in 7.23s
 
 python -m ruff check ui app.py commands/status.py nlp skills workflow memory utils tests tools.py smartdocking/vina.py smartdocking/pipeline.py report --select E9,F63,F7,F82 --target-version py310
 All checks passed!
@@ -94,4 +96,25 @@ passed
 输入/输出速率及四宽度布局检查。CI 的关键静态检查现覆盖 UI、App 和状态命令。
 五个 live 测试仍是显式跳过；科学软件和真实模型在此 UI 跟进中没有重新运行。
 
-独立审查、隐私/编码核验与本分支远端 CI 状态将在发布前记录，不预先宣称已通过。
+独立 Spec 复核通过；Standards 复核发现上述确认面板缺口，新增真实 App → Agent →
+高风险工具的回归先失败、后修复通过；模型响应明确为桩，工具未执行。
+初轮独立隐私检查：12 文件严格 UTF-8 / Python 3.10 语法通过，516 新增行无有效
+私有路径、凭证或乱码命中；补充修复的复核和远端 CI 状态将在发布前记录。
+
+## 5. 有界离线并发回归与机器人测试边界
+
+新增 `test_repeated_saturation_preserves_results_and_releases_capacity`：使用真实
+`BackgroundTaskManager`，1/2/4 工作线程分别执行 8 批，每批容量 16；总计 384 次
+已接受提交，288 成功、72 次预定异常、24 次排队取消。另验证 24 次超容量提交被
+显式拒绝。每轮核对参数/结果对应、任务表清空与容量恢复，峰值运行数等于配置上限。
+所有任务为内存中的确定性 fixture，无网络、GPU 或科学计算，等待各限 5 秒。
+
+```text
+python -m pytest -q tests/test_parallel_failures.py -k repeated_saturation --durations=3
+3 passed, 12 deselected in 0.16s
+```
+
+新增测试放置时一次语法错误由 collection/lint 检出，已修正并完整重跑；没有跳过失败项。
+这是执行基础设施的离线压力回归，不是吞吐优化或真实模型性能基准。
+用户希望同时测试 ChatGPT 产品里的机器人，但尚未提供具体链接或可访问 API；
+该真实入口测试未开始，不能用上述 fixture 结果代替。
