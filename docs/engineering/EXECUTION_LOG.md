@@ -214,7 +214,7 @@ must be identified separately from deterministic tests and mocks.
 - Only this evidence documentation changes after the tested code. Final PR head
   checks and merge are verified directly in GitHub before the completion response.
 
-## 12:50–13:13 — Follow-up: old CI notification and real CMD UI
+## 13:13 — Follow-up recorded: old CI notification and real CMD UI
 
 - Re-queried GitHub: `997e517` PR run remains a historical failure; `00a931b`,
   `1eec5db` and merged main `ccbe823` runs succeeded. No failure history deleted.
