@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import zipfile
+from email.parser import Parser
 
 import pytest
 
@@ -26,6 +27,14 @@ def test_wheel_contains_runtime_templates_and_bridge(wheel):
     assert 'zhuangzhou/CYPamber/cypforge_bridge.py' in names
     assert 'zhuangzhou/workflow/templates/docking_only.json' in names
     assert not any('/.venv/' in name or name.endswith(('.key', '.pem', '.env')) for name in names)
+
+
+def test_running_version_matches_built_package_metadata(wheel):
+    import zhuangzhou
+    with zipfile.ZipFile(wheel) as archive:
+        metadata_path = next(name for name in archive.namelist() if name.endswith('.dist-info/METADATA'))
+        metadata = Parser().parsestr(archive.read(metadata_path).decode('utf-8'))
+    assert metadata['Version'] == zhuangzhou.__version__
 
 
 def test_installed_wheel_imports_and_lists_templates(wheel, tmp_path):

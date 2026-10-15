@@ -213,3 +213,62 @@ must be identified separately from deterministic tests and mocks.
   credential-like paths and sensitive extensions absent from its member list.
 - Only this evidence documentation changes after the tested code. Final PR head
   checks and merge are verified directly in GitHub before the completion response.
+
+## 13:13 — Follow-up recorded: old CI notification and real CMD UI
+
+- Re-queried GitHub: `997e517` PR run remains a historical failure; `00a931b`,
+  `1eec5db` and merged main `ccbe823` runs succeeded. No failure history deleted.
+- CMD entry point reproduced 80-column banner wrap and misleading metadata.
+  New tests first reported 14 failures; additional call-chain tests exposed four
+  remaining errors after the first fix. Repaired at shared UI/runtime boundaries.
+- Added responsive banner, real version/start time, help/completion consistency,
+  local commands without model initialization, explicit failures and accurate
+  output-token rate/estimate labels. Preserved registered skill Agent dispatch.
+- Real CMD/PTY smoke ran startup, version, help, status, unknown command, missing
+  backend confirmation and clean quit, using isolated state and no model network.
+  Corrected an over-broad smoke isolation rule that blocked internal socketpair.
+- Actual renderer previews at 60/80/100/120 columns were inspected; these are
+  fixtures, not native CMD screenshots or scientific results. Details and limits
+  are in [UI_AUDIT.md](UI_AUDIT.md).
+- Local full suite: **237 passed / 5 skipped / 13 existing warnings, 7.12s**;
+  py310 critical lint including UI/App/status and diff whitespace checks pass.
+- Independent review, privacy/UTF-8 check and remote CI follow before publishing.
+
+## 13:20 — Confirmation review and bounded offline saturation
+
+- Spec review passed; Standards review reproduced a pre-existing UI gap: the App
+  discards the returned confirmation instruction. Added an App-to-Agent regression
+  (failed first), then a literal confirmation panel with full redacted parameters
+  and the precise command. Pending parameters are unchanged and never auto-executed.
+- Repeated real background manager saturation with 1/2/4 workers: 384 accepted
+  submissions, 288 successful fixtures, 72 injected failures, 24 queued cancellations;
+  24 over-capacity attempts rejected. Each batch releases all tracked capacity.
+  Three stress cases pass in 0.16s; these are not live chatbot throughput measurements.
+- A misplaced new test initially caused a collection syntax error; corrected it
+  and reran all tests rather than weakening or excluding the test.
+- Full offline regression: **241 passed / 5 skipped / 13 existing warnings, 7.23s**;
+  critical Ruff checks pass. No additional dependencies or scientific algorithms.
+- User clarified this is a test machine with no existing running installation.
+  Requested ChatGPT bot testing remains endpoint-blocked: no specific bot URL/API.
+
+- Both reviewers approved `fa100cf` and independently passed 76 related tests.
+  Follow-up caller inspection then reproduced a second confirmation defect with
+  an additional failing parameterized case: background wrapper names were used
+  in `/confirm` instead of the actual pending skill. The display now reads the
+  saved pending call under its existing lock; direct and wrapped paths agree.
+  Full final code regression: **242 passed / 5 skipped / 13 warnings, 7.15s**;
+  critical Ruff passes. Supplementary independent review follows before upload.
+
+- Both independent reviewers approved code `8f08966`; each independently ran
+  77 related tests successfully. Standards review rechecked privacy/UTF-8/py310
+  on the supplemental changes, with no actionable findings. Parent tracked-only
+  scan again reported zero sensitive-path/token/encoding matches before upload.
+- Published [PR #2](https://github.com/ZiyanZhuang/zhuangzhou/pull/2), attached to
+  the task. Remote Ubuntu/Python 3.10 and Windows/Python 3.12 checks are required
+  before merge; publishing does not assert that pending checks have passed.
+
+- Code `8f08966` passed all four remote checks: [push run](https://github.com/ZiyanZhuang/zhuangzhou/actions/runs/38686590167)
+  and [PR run](https://github.com/ZiyanZhuang/zhuangzhou/actions/runs/38686604941),
+  each Ubuntu/Python 3.10 and Windows/Python 3.12. Actual check states read SUCCESS.
+  Only evidence documentation follows; final-head checks and exact-SHA merge are
+  verified separately before the completion response.

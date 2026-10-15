@@ -3,9 +3,11 @@
 import os
 import sys
 import platform
+from importlib.metadata import version, PackageNotFoundError
 from rich.panel import Panel
 from rich.table import Table
 from rich.columns import Columns
+from rich.text import Text
 
 from .base import BaseCommand
 
@@ -17,7 +19,7 @@ class StatusCommand(BaseCommand):
     aliases = ["info", "env"]
 
     def execute(self, args: list):
-        from zhuangzhou import __version__
+        import zhuangzhou
 
         # System info
         sys_table = Table(
@@ -29,10 +31,11 @@ class StatusCommand(BaseCommand):
         sys_table.add_column("Key", style="bright_white", min_width=18)
         sys_table.add_column("Value", style="bright_yellow")
 
-        sys_table.add_row("Zhuangzhou", f"v{__version__}")
+        sys_table.add_row("Zhuangzhou", f"v{zhuangzhou.__version__}")
+        sys_table.add_row("Package Path", Text(os.path.dirname(zhuangzhou.__file__)))
         sys_table.add_row("Python", sys.version.split()[0])
         sys_table.add_row("Platform", platform.platform())
-        sys_table.add_row("Working Dir", os.getcwd())
+        sys_table.add_row("Working Dir", Text(os.getcwd()))
 
         # Check key packages
         packages = {
@@ -55,7 +58,12 @@ class StatusCommand(BaseCommand):
         for mod, label in packages.items():
             try:
                 m = __import__(mod)
-                ver = getattr(m, "__version__", "installed")
+                ver = getattr(m, "__version__", None)
+                if ver is None:
+                    try:
+                        ver = version({'Bio': 'biopython'}.get(mod, mod))
+                    except PackageNotFoundError:
+                        ver = 'installed (version unavailable)'
                 pkg_table.add_row(label, f"[green]{ver}[/]")
             except ImportError:
                 pkg_table.add_row(label, "[red]not found[/]")

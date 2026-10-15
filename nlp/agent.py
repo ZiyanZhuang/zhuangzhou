@@ -972,6 +972,7 @@ class AgentExecutor:
             monitor.set_usage(
                 input_tokens=estimated_input,
                 output_tokens=monitor.output_tokens,  # keep existing output estimate
+                estimated=True,
             )
 
         try:
@@ -1091,6 +1092,8 @@ class AgentExecutor:
             if response.stop_reason in ('error', 'length', 'max_tokens') or (
                 not response.has_tool_calls() and not (response.text or '').strip()
             ):
+                if monitor:
+                    monitor.update(phase='error', action='Incomplete model response')
                 self._checkpoint.save(user_message, self.execution_log[turn_log_start:], session_id=self._session_id)
                 return response.text or '[Model Error] Empty or incomplete response; task remains resumable'
 
@@ -1098,10 +1101,13 @@ class AgentExecutor:
                 final_text = response.text or ""
                 pending_tasks = self._bg_tasks.check_status()
                 execution_complete = not unresolved_errors and not pending_tasks
+                if monitor:
+                    monitor.update(phase='done' if execution_complete else ('error' if unresolved_errors else 'wait'),
+                                   action='Complete' if execution_complete else 'Execution incomplete')
                 if not execution_complete:
                     final_text = '[Execution incomplete] Unresolved failures or background tasks remain.\n' + final_text
                 self.messages.append({"role": "assistant", "content": final_text})
-                if not self._did_stream_final:
+                if not self._did_stream_final or not execution_complete:
                     ZZInterface.display_message(
                         "assistant",
                         final_text,
@@ -1211,15 +1217,29 @@ class AgentExecutor:
                 )
 
             self.messages.append({"role": "user", "content": tool_results})
-            pending = [tc.name for tc, obs in all_results if isinstance(obs, dict) and obs.get('needs_confirmation')]
+            pending = [(obs.get('skill', tc.name), tc.arguments) for tc, obs in all_results
+                       if isinstance(obs, dict) and obs.get('needs_confirmation')]
             if pending:
+                if monitor:
+                    monitor.update(phase='wait', action='Awaiting confirmation')
+                details = []
+                for name, requested in pending:
+                    with self._confirmation_lock:
+                        saved = copy.deepcopy(self._pending_confirmations.get(name, requested))
+                    params = json.dumps(redact_secrets(saved), ensure_ascii=False, indent=2, default=str)
+                    details.append(f'Skill: {name}\nParameters (credentials redacted):\n{params}\nConfirm: /confirm {name}')
+                ZZInterface.display_message('confirmation', '\n\n'.join(details))
                 self._checkpoint.save(user_message, self.execution_log[turn_log_start:], session_id=self._session_id)
-                return '等待高风险操作确认: ' + ', '.join(f'/confirm {name}' for name in pending)
+                return '等待高风险操作确认: ' + ', '.join(f'/confirm {name}' for name, _ in pending)
             consecutive_errors = consecutive_errors + 1 if batch_has_error else 0
             if consecutive_errors >= 3:
+                if monitor:
+                    monitor.update(phase='error', action='Repeated tool failures')
                 self._checkpoint.save(user_message, self.execution_log[turn_log_start:], session_id=self._session_id)
                 return "[System Intervention] 连续多次工具调用失败，已强制中断。"
 
+        if monitor:
+            monitor.update(phase='error', action='Iteration limit reached')
         self._checkpoint.save(user_message, self.execution_log[turn_log_start:], session_id=self._session_id)
         return "[Warning] 达到最大推演轮数。"
 

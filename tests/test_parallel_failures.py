@@ -139,3 +139,52 @@ def test_exclusive_reuses_only_identical_running_parameters():
     finally:
         release.set()
         manager.shutdown(wait=True)
+
+
+@pytest.mark.parametrize('workers', [1, 2, 4])
+def test_repeated_saturation_preserves_results_and_releases_capacity(workers):
+    """Bounded offline stress fixture: eight batches, failures and queued cancellation."""
+    manager = BackgroundTaskManager(max_workers=workers, max_pending=16)
+    lock = threading.Lock()
+    active = peak = 0
+    release = threading.Event()
+    saturated = threading.Event()
+
+    def work(name, params):
+        nonlocal active, peak
+        with lock:
+            active += 1
+            peak = max(peak, active)
+            if active == workers:
+                saturated.set()
+        try:
+            assert release.wait(5)
+            if params['index'] % 5 == 0:
+                raise ValueError(f"injected-{params['index']}")
+            return params
+        finally:
+            with lock:
+                active -= 1
+
+    try:
+        for batch in range(8):
+            release.clear()
+            saturated.clear()
+            params = [{'batch': batch, 'index': index} for index in range(16)]
+            ids = [manager.submit('offline_stress_fixture', item, work) for item in params]
+            assert len(set(ids)) == 16 and saturated.wait(5)
+            with pytest.raises(RuntimeError, match='capacity'):
+                manager.submit('overflow_fixture', {}, work)
+            assert manager.cancel(ids[-1])['cancelled']
+            release.set()
+            for task_id, expected in zip(ids[:-1], params[:-1]):
+                result = manager.wait_result(task_id, timeout=5)
+                if expected['index'] % 5 == 0:
+                    assert result == {'error': f"injected-{expected['index']}"}
+                else:
+                    assert result == expected
+            assert manager.check_status() == [] and manager.active_count == 0
+        assert peak == workers and active == 0
+    finally:
+        release.set()
+        manager.shutdown(wait=True)

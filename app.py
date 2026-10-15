@@ -36,6 +36,17 @@ DEFAULT_CONFIG = {
 }
 
 
+def _command_descriptions():
+    from zhuangzhou.nlp.slash import manager as slash_manager
+
+    descriptions = {f'/{name}': cmd.description for name, cmd in COMMANDS.items()}
+    descriptions.update({trigger: cmd.description for trigger, cmd in slash_manager.commands.items()
+                         if trigger == cmd.trigger})
+    descriptions.update({'/version': 'Show the running package version',
+                         '/clear': 'Clear terminal', '/quit': 'Exit'})
+    return descriptions
+
+
 def _render_help_table():
     from rich.table import Table
 
@@ -49,13 +60,8 @@ def _render_help_table():
     table.add_column("Command", style=ZZTheme.CYAN, min_width=12)
     table.add_column("Description", style="white")
 
-    for name, cmd in COMMANDS.items():
-        table.add_row(f"/{name}", cmd.description)
-
-    table.add_row("/skills", "Show all computational skills")
-    table.add_row("/envs", "Check compute environments")
-    table.add_row("/clear", "Clear terminal")
-    table.add_row("/quit", "Exit")
+    for trigger, description in _command_descriptions().items():
+        table.add_row(trigger, description)
 
     console.print(table)
     console.print(
@@ -152,7 +158,7 @@ class ZhuangzhouApp:
 
             self.session = PromptSession(
                 history=FileHistory(self._history_file),
-                completer=ZhuangzhouCompleter(),
+                completer=ZhuangzhouCompleter(commands=_command_descriptions()),
                 auto_suggest=AutoSuggestFromHistory(),
                 complete_while_typing=True,
             )
@@ -190,7 +196,11 @@ class ZhuangzhouApp:
         # 1. Handle Commands
         is_explicit_cmd = line.startswith("/")
         cmd_line = line[1:] if is_explicit_cmd else line
-        parts = shlex.split(cmd_line) if '"' in cmd_line else cmd_line.split()
+        try:
+            parts = shlex.split(cmd_line) if '"' in cmd_line else cmd_line.split()
+        except ValueError as exc:
+            ZZInterface.display_message('error', f'Invalid quoting: {exc}')
+            return
         if not parts:
             return
         cmd_name = parts[0].lower()
@@ -208,6 +218,7 @@ class ZhuangzhouApp:
             "envs",
             "skills",
             "brain",
+            "version",
         )
         is_registered = cmd_name in self.alias_map
 
@@ -221,12 +232,20 @@ class ZhuangzhouApp:
             if cmd_name in ("help", "h", "?"):
                 self.show_help()
                 return
+            if cmd_name == 'version':
+                from zhuangzhou import __version__
+                console.print(f'Zhuangzhou {__version__}')
+                return
 
             # 1. Handle Slash Commands via Centralized Manager
             if is_explicit_cmd:
                 from zhuangzhou.nlp.slash import manager as slash_manager
 
-                if slash_manager.dispatch(line, self._get_slash_context()):
+                if f'/{cmd_name}' in slash_manager.commands:
+                    try:
+                        slash_manager.dispatch(line, self._get_slash_context())
+                    except Exception as exc:
+                        ZZInterface.display_message('error', f'Command /{cmd_name} failed: {exc}')
                     return
 
             # 2. Handle Traditional Registered CLI Commands
@@ -236,6 +255,9 @@ class ZhuangzhouApp:
                     self.commands[resolved].execute(args)
                 except Exception as e:
                     ZZInterface.display_message("error", str(e))
+                return
+            if is_explicit_cmd and self.skills.get(cmd_name) is None:
+                ZZInterface.display_message('error', f'Unknown command: /{cmd_name}. Use /help for commands.')
                 return
 
         # 2. Treat as Natural Language for the Agent
@@ -248,7 +270,11 @@ class ZhuangzhouApp:
         from zhuangzhou.ui.core import ZZStatus
 
         logger = logging.getLogger(__name__)
-        agent = self._get_nlp_agent()
+        try:
+            agent = self._get_nlp_agent()
+        except Exception as exc:
+            ZZInterface.display_message('error', f'Agent unavailable: {exc}. Configure a model backend before chatting.')
+            return
         plan_mode = self._get_plan_mode()
         effective_input = message
 
@@ -294,16 +320,18 @@ class ZhuangzhouApp:
             try:
                 self.session_queries += 1
                 agent.chat(effective_input, status_monitor=status)
-                self.session_tokens += status.total_tokens
             except KeyboardInterrupt:
+                status.update(phase='wait', action='Interrupted')
                 console.print("\n[yellow]Interrupted.[/]")
             except Exception as e:
+                status.update(phase='error', action='Failed')
                 ZZInterface.display_message("error", f"Agent Error: {e}")
+            finally:
+                self.session_tokens += status.total_tokens
 
     def run_interactive(self):
         """Main REPL loop using Gemini-style prompting."""
         self.show_banner()
-        self._get_nlp_agent()
         session = self._get_prompt_session()
 
         # Matches the look of ZZInterface.get_prompt visually
@@ -341,6 +369,10 @@ def main():
         if cmd_line.strip() in ("--help", "-h"):
             ZZInterface.render_logo()
             _render_help_table()
+            return
+        if cmd_line.strip() in ('--version', '-V'):
+            from zhuangzhou import __version__
+            console.print(f'Zhuangzhou {__version__}')
             return
         app = ZhuangzhouApp()
         app.dispatch(cmd_line)
