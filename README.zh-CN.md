@@ -207,7 +207,7 @@ python -m pytest -q
 
 ## 项目链接
 
-[项目展示页](docs/index.html) · [Wiki](../../wiki) ·
+[项目展示页](https://ziyanzhuang.github.io/zhuangzhou/) · [Wiki](../../wiki) ·
 [问题反馈](https://github.com/ZiyanZhuang/zhuangzhou/issues)
 
 仓库排除大体积权重、本地服务配置、凭据和生成的模拟结果。包元数据声明采用

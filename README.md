@@ -220,7 +220,7 @@ general-purpose design service.
 
 ## Project links
 
-[Project page](docs/index.html) · [Wiki](../../wiki) ·
+[Project website](https://ziyanzhuang.github.io/zhuangzhou/?lang=en) · [Wiki](../../wiki) ·
 [Issues](https://github.com/ZiyanZhuang/zhuangzhou/issues)
 
 Large weights, local service settings, credentials and generated simulation

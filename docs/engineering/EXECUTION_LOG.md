@@ -315,3 +315,34 @@ must be identified separately from deterministic tests and mocks.
 - Full offline suite: **246 passed, 5 skipped, 13 existing warnings in 7.61s**.
   Critical Ruff, both README reference/anchor/UTF-8 checks, both bundled Python
   examples and `git diff --check` pass. Publication checks follow separately.
+
+## 2026-10-15 — Standalone GitHub project website
+
+- Reproduced the unavailable site: `https://ziyanzhuang.github.io/zhuangzhou/`
+  returned HTTP 404; the authenticated Pages API also returned 404. README links
+  pointed to the HTML source view, and the old HTML was a fragment without a
+  document header or viewport metadata. The missing publication was the direct
+  cause of the unavailable public URL; the document structure was a separate
+  portability issue, caught by a failing artifact regression.
+- Replaced the fragment with a complete bilingual page: responsive typography,
+  a terminal preview, five-step research loop, source-linked modules, original
+  architecture illustration, three-shell installation, engineering records,
+  project members and the two confirmed supervisors. No new Logo or frontend
+  dependency. Native links/disclosures work independently of optional JS controls.
+- Added a standard-library builder and official Pages Actions workflow on `main`.
+  The artifact contains only selected public files, with the original image copied
+  byte-for-byte. An occupied destination is rejected. Package version, Git revision
+  and commit timestamp generate provenance metadata; the timestamp is explicitly UTC.
+- Browser checks at 390, 768 and 1280 CSS pixels found no horizontal page overflow.
+  Verified Chinese/English switching, both image loads, installation anchor,
+  successful copy feedback, Linux disclosure expansion and valid build metadata.
+  Injecting an invalid local `build.json` produced visible, correctly localized
+  fallback messages; valid metadata was restored. Browser error/warning log empty.
+- Corrected an installation Wiki link after checking its final URL: the guessed
+  short path redirected to Wiki home. Both actual installation pages now return
+  HTTP 200 without redirect. Both README examples/reference checks still pass.
+- Two new artifact tests pass, including the original-image and publication
+  allowlist checks. Full offline suite: **248 passed / 5 skipped / 13 existing
+  warnings in 7.26s**. Critical Ruff, JS syntax and whitespace checks pass.
+  Deployment/remote checks are verified separately before completion.
+- Maintenance and local-preview instructions: `docs/engineering/PROJECT_SITE.md`.
