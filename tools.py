@@ -54,6 +54,7 @@ def _add_scripts_path(config: dict = None):
 def load_esm2_results(result_dirs: List[str]) -> List[dict]:
     """Load and merge ESM-2 multi-model results from JSON files."""
     all_mutations = {}
+    reference_residues = {}
     for rdir in result_dirs:
         json_path = os.path.join(rdir, 'esm2_beneficial_mutations.json')
         if not os.path.exists(json_path):
@@ -77,10 +78,10 @@ def load_esm2_results(result_dirs: List[str]) -> List[dict]:
             if type(m['delta_ll']) not in (int, float) or not math.isfinite(m['delta_ll']):
                 raise ValueError(f'Mutation delta_ll must be a finite number: record {index}')
             key = (m['position'], m['mut'])
+            if reference_residues.setdefault(m['position'], m['wt']) != m['wt']:
+                raise ValueError(f'Conflicting reference residue at position {m["position"]}')
             if key not in all_mutations:
                 all_mutations[key] = {**m, 'scores': {}}
-            if all_mutations[key]['wt'] != m['wt']:
-                raise ValueError(f'Conflicting reference residue at position {m["position"]}')
             previous = all_mutations[key]['scores'].get(model_name)
             if previous is not None and previous != m['delta_ll']:
                 raise ValueError(f'Conflicting scores for model {model_name}, mutation {m["mutation"]}')

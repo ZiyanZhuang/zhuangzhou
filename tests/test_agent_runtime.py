@@ -210,3 +210,39 @@ def test_final_prose_cannot_erase_unresolved_tool_failure(executor):
         final = executor.run_loop('failed calculation fixture', max_iterations=2)
     assert executor._checkpoint.has_pending()
     assert 'incomplete' in final.lower()
+
+
+@pytest.mark.parametrize('second_target,complete', [('A', True), ('B', False)])
+def test_only_same_input_retry_resolves_failure(executor, second_target, complete):
+    outcomes = iter([{'error': 'fixture failure'}, {'value': 1}])
+    register(executor, fn=lambda **kw: next(outcomes))
+    responses = [
+        LLMResponse(tool_calls=[ToolCallRequest('fail', 'calculate', {'target': 'A'})]),
+        LLMResponse(tool_calls=[ToolCallRequest('retry', 'calculate', {'target': second_target})]),
+        LLMResponse(text='All complete', stop_reason='stop'),
+    ]
+    with patch.object(executor, '_stream_llm_response', side_effect=responses):
+        final = executor.run_loop('input identity fixture', max_iterations=3)
+    assert executor._checkpoint.has_pending() is not complete
+    assert ('incomplete' not in final.lower()) is complete
+
+
+def test_successful_collection_resolves_original_wait_timeout(executor):
+    register(executor)
+    responses = iter([
+        LLMResponse(tool_calls=[ToolCallRequest('start', 'calculate', {})]),
+        LLMResponse(tool_calls=[ToolCallRequest('collect', 'collect_background_result', {'task_id': 'fixture-task'})]),
+        LLMResponse(text='Complete', stop_reason='stop'),
+    ])
+    results = iter([
+        [(ToolCallRequest('start', 'calculate', {}), {'error': 'wait timeout', 'status': 'running', 'task_id': 'fixture-task'})],
+        [(ToolCallRequest('collect', 'collect_background_result', {'task_id': 'fixture-task'}), {'value': 1})],
+    ])
+    def execute(*args):
+        batch = next(results)
+        return batch, bool(batch[0][1].get('error')), []
+    with patch.object(executor, '_stream_llm_response', side_effect=lambda *a: next(responses)), \
+         patch.object(executor._parallel_executor, 'execute_all', side_effect=execute):
+        final = executor.run_loop('timeout collection fixture', max_iterations=3)
+    assert 'incomplete' not in final.lower()
+    assert not executor._checkpoint.has_pending()

@@ -45,9 +45,10 @@ def test_invalid_saved_scores_are_rejected(tmp_path, changes):
         load_esm2_results([source])
 
 
-def test_conflicting_reference_residue_is_not_merged(tmp_path):
+@pytest.mark.parametrize('mut', ['G', 'L'])
+def test_conflicting_reference_residue_is_not_merged(tmp_path, mut):
     first = write_result(tmp_path / 'first')
-    second = write_result(tmp_path / 'second', model='fixture-B', wt='V', mutation='V1G')
+    second = write_result(tmp_path / 'second', model='fixture-B', wt='V', mut=mut, mutation=f'V1{mut}')
     with pytest.raises(ValueError, match='reference'):
         load_esm2_results([first, second])
 

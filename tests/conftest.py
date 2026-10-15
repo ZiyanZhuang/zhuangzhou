@@ -61,3 +61,6 @@ def offline_network(request, monkeypatch):
         raise RuntimeError("Network access is disabled in offline tests")
 
     monkeypatch.setattr(socket.socket, "connect", blocked)
+    # A deferred global worker must not outlive this fixture and reach a live model.
+    from zhuangzhou.memory.kg_engine import kg_engine
+    monkeypatch.setattr(kg_engine, 'add_to_queue', lambda turn: False)

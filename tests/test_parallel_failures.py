@@ -9,7 +9,7 @@ import pytest
 
 from zhuangzhou.nlp.backends import ToolCallRequest
 from zhuangzhou.nlp.parallel import (
-    BackgroundTaskManager, ParallelSkillExecutor, run_batch_concurrent, run_batch_serial,
+    BackgroundTaskManager, ParallelSkillExecutor, parameters_match, run_batch_concurrent, run_batch_serial,
 )
 
 
@@ -19,6 +19,11 @@ def call(name="test"):
 
 def fail(*args):
     raise ValueError("injected failure")
+
+
+def test_ambiguous_array_parameters_are_never_deduplicated():
+    import numpy as np
+    assert not parameters_match({'array': np.array([1, 2])}, {'array': np.array([1, 2])})
 
 
 @pytest.mark.parametrize("runner,batch", [
@@ -106,6 +111,27 @@ def test_submitted_parameters_are_a_snapshot():
         release.set()
         manager.shutdown(wait=True)
         assert manager.collect_result(task_id) == {"nested": [1]}
+    finally:
+        release.set()
+        manager.shutdown(wait=True)
+
+
+def test_exclusive_reuses_only_identical_running_parameters():
+    manager = BackgroundTaskManager(max_workers=1)
+    release = threading.Event()
+    try:
+        def work(name, params):
+            assert release.wait(2)
+            return params
+        first = manager.submit('docking_fixture', {'ligand': 'A'}, work, exclusive=True)
+        duplicate = manager.submit('docking_fixture', {'ligand': 'A'}, work, exclusive=True)
+        second = manager.submit('docking_fixture', {'ligand': 'B'}, work, exclusive=True)
+        assert duplicate == first
+        assert second != first
+        release.set()
+        manager.shutdown(wait=True)
+        assert manager.collect_result(first) == {'ligand': 'A'}
+        assert manager.collect_result(second) == {'ligand': 'B'}
     finally:
         release.set()
         manager.shutdown(wait=True)

@@ -360,6 +360,14 @@ class BackgroundTask:
         }
 
 
+def parameters_match(first: dict, second: dict) -> bool:
+    """Ambiguous array/object equality must never merge independent work."""
+    try:
+        return bool(first == second)
+    except (TypeError, ValueError):
+        return False
+
+
 class BackgroundTaskManager:
     """Manages background tasks with progress tracking.
 
@@ -398,6 +406,7 @@ class BackgroundTaskManager:
             executor_fn: Callable(name, params) -> dict.
             description: Human-readable task description.
             estimated_seconds: Estimated run time (for progress display).
+            exclusive: Reuse only an identical, unfinished invocation.
 
         Returns:
             task_id: Unique identifier for the background task.
@@ -407,7 +416,8 @@ class BackgroundTaskManager:
         with self._lock:
             if exclusive:
                 for task in self._tasks.values():
-                    if task.skill_name == skill_name and not task.is_done:
+                    if (task.skill_name == skill_name and not task.is_done
+                            and parameters_match(task.params, params)):
                         return task.task_id
             if len(self._tasks) >= self.max_pending:
                 raise RuntimeError('Background task capacity reached; collect completed results before submitting')

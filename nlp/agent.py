@@ -25,9 +25,7 @@ import sys
 import time
 import threading
 import traceback
-import concurrent.futures
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Set
 
 from zhuangzhou.memory.knowledge import KnowledgeStore
@@ -42,7 +40,9 @@ from zhuangzhou.skills.results import result_error
 from zhuangzhou.utils.robustness import redact_secrets
 from zhuangzhou.nlp.context import context_manager, FEW_SHOT_REACT
 from zhuangzhou.nlp.router import ToolRouter
-from zhuangzhou.nlp.parallel import ParallelSkillExecutor, BackgroundTaskManager, is_skill_concurrent_safe
+from zhuangzhou.nlp.parallel import (
+    ParallelSkillExecutor, BackgroundTaskManager, is_skill_concurrent_safe, parameters_match,
+)
 
 try:
     from rich.console import Console
@@ -1129,7 +1129,7 @@ class AgentExecutor:
                         thought=turn_data["reasoning_chain"],
                         skills=turn_data["skills"],
                         output=final_text,
-                        errors=list(unresolved_errors.values()),
+                        errors=[failure['error'] for failure in unresolved_errors.values()],
                     )
                     if self.verbose:
                         logger.info(f"Full-fidelity turn archived to: {dest}")
@@ -1177,10 +1177,19 @@ class AgentExecutor:
             tool_results = []
             for tc, obs_data in all_results:
                 error = result_error(obs_data)
+                collecting = tc.name == 'collect_background_result' and isinstance(tc.arguments, dict)
+                task_id = tc.arguments.get('task_id') if collecting else (
+                    obs_data.get('task_id') if isinstance(obs_data, dict) else None)
+                still_running = isinstance(obs_data, dict) and obs_data.get('status') == 'running'
+                for call_id, failure in list(unresolved_errors.items()):
+                    same_task = task_id and task_id == failure.get('task_id')
+                    same_input = (tc.name == failure['skill']
+                                  and parameters_match(tc.arguments, failure['params']))
+                    if (collecting and same_task and not still_running) or (not error and same_input):
+                        del unresolved_errors[call_id]
                 if error:
-                    unresolved_errors[tc.name] = error
-                else:
-                    unresolved_errors.pop(tc.name, None)
+                    unresolved_errors[tc.id] = {'skill': tc.name, 'params': copy.deepcopy(tc.arguments),
+                                                'task_id': task_id, 'error': error}
                 tool_results.append(
                     {
                         "type": "tool_result",
