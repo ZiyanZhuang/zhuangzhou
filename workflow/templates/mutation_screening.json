@@ -22,7 +22,7 @@
             "description": "Layer 1: Structural role classification",
             "params": {
                 "pdb_path": "$input.pdb_path",
-                "mutations": "$layer0_prescreen.plm_mutations",
+                "mutations": "$layer0_prescreen.mutations",
                 "binding_site": "$input.binding_site"
             },
             "output_key": "structural_roles"

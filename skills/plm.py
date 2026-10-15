@@ -101,10 +101,11 @@ def esm2_scan(fasta_path: str, output_dir: str = None, model: str = 'esm2_t33_65
                 'output_dir': output_dir}
 
 
-def load_esm2_results(result_dirs: list, config: dict = None, **kw) -> list:
+def load_esm2_results(result_dirs: list, config: dict = None, **kw) -> dict:
     """Load pre-computed ESM-2 results from multiple model directories."""
     from zhuangzhou.tools import load_esm2_results as _load
-    return _load(result_dirs)
+    mutations = _load(result_dirs)
+    return {'mutations': mutations, 'n_mutations': len(mutations), 'sources': list(result_dirs)}
 
 
 # ── Colab ESM Functions (v0.9.0 — HTTP tunnel mode) ──────────────────────

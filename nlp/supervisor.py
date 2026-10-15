@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -46,6 +47,7 @@ class GateResult:
     blocking: bool = False          # True = must fix before executing
     confidence: float = 1.0
     gate_name: str = ""
+    verification_type: str = 'rule_check'  # rule_check | model_review | unavailable
 
     def __str__(self):
         status = "PASS" if self.passed else "FAIL"
@@ -68,8 +70,8 @@ class TypeAValidator:
     def check_pdb_has_metalloprotein(pdb_path: str) -> GateResult:
         """Detect HEME/metal residues in PDB. Critical for MD forcefield selection."""
         if not pdb_path or not os.path.exists(pdb_path):
-            return GateResult(passed=True, gate_name="metalloprotein_check",
-                              issues=["PDB not yet downloaded — skip pre-check"])
+            return GateResult(passed=False, blocking=True, confidence=0, gate_name="metalloprotein_check",
+                              issues=["PDB file is unavailable; metal check cannot run"])
 
         metals_found = []
         try:
@@ -82,7 +84,8 @@ class TypeAValidator:
                                 metals_found.append(resname)
         except Exception as e:
             logger.warning("PDB metal scan failed: %s", e)
-            return GateResult(passed=True, gate_name="metalloprotein_check")
+            return GateResult(passed=False, blocking=True, confidence=0, gate_name="metalloprotein_check",
+                              issues=[f'PDB metal scan failed: {e}'])
 
         if metals_found:
             return GateResult(
@@ -98,7 +101,8 @@ class TypeAValidator:
     def check_crystallographic_additives(pdb_path: str) -> GateResult:
         """Detect crystallographic additives that could corrupt active site detection."""
         if not pdb_path or not os.path.exists(pdb_path):
-            return GateResult(passed=True, gate_name="additive_check")
+            return GateResult(passed=False, blocking=True, confidence=0, gate_name="additive_check",
+                              issues=['PDB file is unavailable'])
 
         additives_found = []
         try:
@@ -111,7 +115,8 @@ class TypeAValidator:
                                 additives_found.append(resname)
         except Exception as e:
             logger.warning("Additive scan failed: %s", e)
-            return GateResult(passed=True, gate_name="additive_check")
+            return GateResult(passed=False, blocking=True, confidence=0, gate_name="additive_check",
+                              issues=[f'Additive scan failed: {e}'])
 
         if additives_found:
             return GateResult(
@@ -127,7 +132,8 @@ class TypeAValidator:
     def check_chain_completeness(pdb_path: str) -> GateResult:
         """For multimers: identify the most complete chain."""
         if not pdb_path or not os.path.exists(pdb_path):
-            return GateResult(passed=True, gate_name="chain_check")
+            return GateResult(passed=False, blocking=True, confidence=0, gate_name="chain_check",
+                              issues=['PDB file is unavailable'])
 
         chain_counts: Dict[str, int] = {}
         try:
@@ -139,7 +145,8 @@ class TypeAValidator:
                             chain_counts[chain] = chain_counts.get(chain, 0) + 1
         except Exception as e:
             logger.warning("Chain scan failed: %s", e)
-            return GateResult(passed=True, gate_name="chain_check")
+            return GateResult(passed=False, blocking=True, confidence=0, gate_name="chain_check",
+                              issues=[f'Chain scan failed: {e}'])
 
         if len(chain_counts) <= 1:
             return GateResult(passed=True, gate_name="chain_check")
@@ -164,11 +171,24 @@ class TypeAValidator:
 
         # Look for output files
         pdbqt_files = [f for f in os.listdir(docking_dir)
-                       if f.endswith("_out.pdbqt") or f.endswith("_results.pdbqt")]
+                       if f.endswith(("_out.pdbqt", "_results.pdbqt", "_docked.pdbqt"))]
         if not pdbqt_files:
             return GateResult(passed=False, gate_name="docking_output",
                               issues=["No docking poses found — docking may have failed"],
                               blocking=True)
+        try:
+            has_atoms = False
+            for name in pdbqt_files:
+                with open(os.path.join(docking_dir, name), encoding='utf-8') as handle:
+                    if any(line.startswith(('ATOM  ', 'HETATM')) for line in handle):
+                        has_atoms = True
+                        break
+            if not has_atoms:
+                return GateResult(passed=False, blocking=True, gate_name='docking_output',
+                                  issues=['Pose files contain no atom records'])
+        except (OSError, UnicodeError) as e:
+            return GateResult(passed=False, blocking=True, gate_name='docking_output',
+                              issues=[f'Cannot read docking poses: {e}'])
 
         # Check best affinity in log
         best_affinity = None
@@ -259,7 +279,8 @@ class SupervisorGate:
         system = _GATE_SYSTEM_PROMPTS.get(gate_name)
         if not system:
             logger.warning("Unknown gate: %s", gate_name)
-            return GateResult(passed=True, gate_name=gate_name)
+            return GateResult(passed=False, blocking=True, confidence=0, gate_name=gate_name,
+                              verification_type='unavailable', issues=['Unknown review gate'])
 
         import json
         user_msg = f"待审查的参数:\n{json.dumps(context, ensure_ascii=False, indent=2)}"
@@ -272,19 +293,30 @@ class SupervisorGate:
             start = raw.find("{")
             if start != -1:
                 data, _ = decoder.raw_decode(raw, start)
+                if not isinstance(data, dict) or type(data.get('passed')) is not bool:
+                    raise ValueError('Review must contain a boolean passed field')
+                confidence = data.get('confidence', 0.8)
+                if type(confidence) not in (int, float) or not math.isfinite(confidence) or not 0 <= confidence <= 1:
+                    raise ValueError('Review confidence must be finite and between 0 and 1')
+                if not isinstance(data.get('issues', []), list) or not all(isinstance(i, str) for i in data.get('issues', [])):
+                    raise ValueError('Review issues must be a list of strings')
+                if not isinstance(data.get('corrections', {}), dict) or type(data.get('blocking', False)) is not bool:
+                    raise ValueError('Invalid review corrections or blocking flag')
                 return GateResult(
                     gate_name=gate_name,
-                    passed=data.get("passed", True),
-                    confidence=data.get("confidence", 0.8),
+                    passed=data['passed'] and not data.get('blocking', False),
+                    confidence=confidence,
                     issues=data.get("issues", []),
                     corrections=data.get("corrections", {}),
-                    blocking=data.get("blocking", False),
+                    blocking=not data['passed'] or data.get('blocking', False),
+                    verification_type='model_review',
                 )
         except Exception as e:
-            logger.warning("SupervisorGate %s failed: %s — defaulting to pass", gate_name, e)
+            logger.warning("SupervisorGate %s unavailable: %s", gate_name, e)
 
-        return GateResult(passed=True, gate_name=gate_name,
-                          issues=["Gate check unavailable — proceeding with caution"])
+        return GateResult(passed=False, blocking=True, confidence=0, gate_name=gate_name,
+                          verification_type='unavailable',
+                          issues=["Review unavailable or invalid; verified parameters are required before execution"])
 
 
 # =============================================================================
@@ -316,7 +348,7 @@ class PipelineSupervisor:
             if r.blocking:
                 blocking = True
             min_conf = min(min_conf, r.confidence)
-        passed = not blocking
+        passed = all(r.passed for r in results) and not blocking
         return GateResult(passed=passed, issues=issues, corrections=corrections,
                           blocking=blocking, confidence=min_conf, gate_name=gate_name)
 
@@ -324,8 +356,8 @@ class PipelineSupervisor:
                            literature_snippets: List[str]) -> GateResult:
         """TypeB: validate that literature supports the extracted parameters."""
         if not self.type_b:
-            return GateResult(passed=True, gate_name="post_research",
-                              issues=["No LLM backend — skipping TypeB gate"])
+            return GateResult(passed=False, blocking=True, confidence=0, gate_name="post_research",
+                              verification_type='unavailable', issues=["No backend for required model review"])
         context = {
             "params": research_params,
             "literature_snippets": literature_snippets[:3],  # cap to save tokens
@@ -364,7 +396,8 @@ class PipelineSupervisor:
                         "(detected: %s)", r_metal.corrections["metal_residues"])
 
         # TypeB: LLM validates the full MD parameter set
-        type_b_result = GateResult(passed=True, gate_name="pre_md_llm")
+        type_b_result = GateResult(passed=False, blocking=True, confidence=0, gate_name="pre_md_llm",
+                                  verification_type='unavailable', issues=['No backend for required MD parameter review'])
         if self.type_b:
             context = {**md_params,
                        "metal_residues": r_metal.corrections.get("metal_residues", [])}

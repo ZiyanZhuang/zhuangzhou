@@ -1,55 +1,63 @@
 {
     "name": "docking_only",
-    "description": "Quick docking workflow: grid generation -> Vina docking -> PLIP analysis",
-    "version": "1.0",
+    "description": "Native SmartDocking -> validated docked-pose complex -> PLIP analysis",
+    "version": "1.1",
     "inputs": {
-        "protein_pdb": {"type": "path", "description": "Protein PDB file", "required": true},
-        "ligand_sdf": {"type": "path", "description": "Ligand SDF file", "required": true},
-        "center": {"type": "list", "description": "Grid center (x,y,z)", "required": false}
+        "protein_pdb": {
+            "type": "path",
+            "description": "Protein PDB file",
+            "required": true
+        },
+        "ligand_sdf": {
+            "type": "path",
+            "description": "Ligand SDF file",
+            "required": true
+        },
+        "center": {
+            "type": "list",
+            "description": "Optional grid center x,y,z (Angstrom); otherwise detected",
+            "required": false
+        },
+        "box_size": {
+            "type": "list",
+            "description": "Box dimensions x,y,z (Angstrom)",
+            "required": false,
+            "default": [
+                20,
+                20,
+                20
+            ]
+        },
+        "output_dir": {
+            "type": "path",
+            "description": "Output directory",
+            "required": false,
+            "is_output_path": true
+        }
     },
     "steps": [
         {
-            "id": "step_grid",
-            "skill": "generate_docking_grid",
-            "description": "Generate docking grid from ligand",
-            "params": {
-                "ligand_sdf": "$input.ligand_sdf"
-            },
-            "output_key": "grid",
-            "on_error": "continue"
-        },
-        {
             "id": "step_dock",
-            "skill": "vina_docking",
-            "description": "Run Vina molecular docking",
+            "skill": "smart_docking",
+            "description": "Dock and build a complex from the actual Vina pose",
             "params": {
-                "protein_pdb": "$input.protein_pdb",
-                "ligand_sdf": "$input.ligand_sdf",
-                "center": "$input.center"
+                "protein_query": "$input.protein_pdb",
+                "ligand_query": "$input.ligand_sdf",
+                "center": "$input.center",
+                "box_size": "$input.box_size",
+                "output_dir": "$input.output_dir",
+                "run_plip": false
             },
             "output_key": "docking_result"
         },
         {
-            "id": "step_complex",
-            "skill": "generate_complex",
-            "description": "Generate protein-ligand complex",
-            "params": {
-                "protein_pdb": "$input.protein_pdb",
-                "ligand_sdf": "$input.ligand_sdf"
-            },
-            "output_key": "complex",
-            "on_error": "continue"
-        },
-        {
             "id": "step_plip",
             "skill": "plip_analysis",
-            "description": "Analyze protein-ligand interactions",
+            "description": "Analyze the docked complex, never the original ligand coordinates",
             "params": {
-                "complex_pdb": "$step_complex.complex_pdb"
+                "complex_pdb": "$step_dock.complex_pdb"
             },
-            "output_key": "interactions",
-            "condition": "$step_complex.success == true",
-            "on_error": "continue"
+            "output_key": "interactions"
         }
     ]
 }

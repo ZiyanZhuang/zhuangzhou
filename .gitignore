@@ -1,4 +1,6 @@
 # Python
+.venv/
+.engineering-artifacts/
 __pycache__/
 *.pyc
 *.pyo

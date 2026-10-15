@@ -1078,7 +1078,7 @@ def register_skills(registry: SkillRegistry):
         category='report',
         fn=_generate_mutation_report,
         inputs=[
-            SkillParam('results', 'dict', 'Pipeline results dict or JSON string', required=False),
+            SkillParam('results', 'json', 'Pipeline results dict or JSON string', required=False),
             SkillParam('results_json', 'path', 'Path to results JSON file', required=False),
             SkillParam('output_path', 'path', 'Output .docx file path', required=False),
             SkillParam('title', 'string', 'Report title', required=False),
@@ -1100,7 +1100,7 @@ def register_skills(registry: SkillRegistry):
         category='report',
         fn=_generate_docking_report,
         inputs=[
-            SkillParam('results', 'dict', 'SmartDocking results dict or JSON string', required=False),
+            SkillParam('results', 'json', 'SmartDocking results dict or JSON string', required=False),
             SkillParam('results_json', 'path', 'Path to docking results JSON file', required=False),
             SkillParam('output_path', 'path', 'Output .docx file path', required=False),
             SkillParam('title', 'string', 'Report title', required=False),
@@ -1120,7 +1120,7 @@ def register_skills(registry: SkillRegistry):
         category='report',
         fn=_generate_md_report,
         inputs=[
-            SkillParam('results', 'dict', 'MD analysis results dict or JSON string', required=False),
+            SkillParam('results', 'json', 'MD analysis results dict or JSON string', required=False),
             SkillParam('results_json', 'path', 'Path to MD results JSON file', required=False),
             SkillParam('output_path', 'path', 'Output .docx file path', required=False),
             SkillParam('title', 'string', 'Report title', required=False),
@@ -1143,7 +1143,7 @@ def register_skills(registry: SkillRegistry):
         category='report',
         fn=_generate_qm_report,
         inputs=[
-            SkillParam('results', 'dict', 'QM pipeline results dict or JSON string', required=False),
+            SkillParam('results', 'json', 'QM pipeline results dict or JSON string', required=False),
             SkillParam('results_json', 'path', 'Path to QM results JSON file', required=False),
             SkillParam('output_path', 'path', 'Output .docx file path', required=False),
             SkillParam('title', 'string', 'Report title', required=False),
@@ -1162,7 +1162,7 @@ def register_skills(registry: SkillRegistry):
         category='report',
         fn=_generate_general_report,
         inputs=[
-            SkillParam('sections', 'list', 'List of section dicts [{type, text/data, ...}]', required=False),
+            SkillParam('sections', 'json', 'List of section dicts [{type, text/data, ...}]', required=False),
             SkillParam('sections_json', 'path', 'Path to sections JSON file', required=False),
             SkillParam('output_path', 'path', 'Output .docx file path', required=False),
             SkillParam('title', 'string', 'Report title', required=False, default='Report'),
@@ -1216,7 +1216,7 @@ def register_skills(registry: SkillRegistry):
         category='report',
         fn=_enriched_docking_report_skill,
         inputs=[
-            SkillParam('results', 'dict',
+            SkillParam('results', 'json',
                        'Docking results dict (same format as generate_docking_report)',
                        required=False),
             SkillParam('results_json', 'path',

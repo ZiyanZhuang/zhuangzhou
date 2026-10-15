@@ -1,4 +1,4 @@
-﻿"""
+"""
 Project Memory 鈥?project-context-style accumulating plain text knowledge
 =====================================================================
 LLM agent runtime's killer insight: plain text > vector DB for agent memory.
@@ -382,6 +382,7 @@ class ProjectMemory:
             from zhuangzhou.memory.kg_engine import LocalKGEngine
 
             return [
+                f"[{item.get('verification_status', 'legacy_unverified')}; {item.get('source_type', 'legacy_unknown')}] "
                 f"{item['head']} --{item['relation']}--> {item['tail']}"
                 for item in LocalKGEngine.top_patterns(limit=limit)
             ]
@@ -401,4 +402,3 @@ class ProjectMemory:
             "enzymes": enzymes,
             "memory_file": self.memory_file,
         }
-

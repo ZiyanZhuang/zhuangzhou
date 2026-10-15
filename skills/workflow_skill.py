@@ -5,6 +5,7 @@ can discover and execute workflows like any other skill.
 """
 
 import logging
+import os
 from .registry import Skill, SkillParam, SkillRegistry
 
 logger = logging.getLogger(__name__)

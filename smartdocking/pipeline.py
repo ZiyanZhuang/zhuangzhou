@@ -15,6 +15,8 @@ All defaults come from config.py — edit that file to tune parameters.
 
 import json
 import logging
+import math
+import numbers
 import os
 import time
 
@@ -25,6 +27,7 @@ from .prepare import (
 )
 from .site import define_active_site
 from .vina import run_vina
+from zhuangzhou.skills.results import result_error
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +92,8 @@ class SmartDocking:
             num_modes: int = VINA_DEFAULTS['num_modes'],
             padding: float = SITE_DEFAULTS['padding'],
             flex_pdbqt: str = None,
-            timeout: int = VINA_DEFAULTS['timeout']) -> dict:
+            timeout: int = VINA_DEFAULTS['timeout'],
+            center: list = None, box_size: list = None) -> dict:
         """
         Run the full docking pipeline.
 
@@ -111,6 +115,13 @@ class SmartDocking:
         # Check for init errors (deferred from constructor)
         if self._init_error:
             return {'error': self._init_error, 'hint': 'Check file path'}
+        for name, values in (('center', center), ('box_size', box_size)):
+            if values is not None and (
+                not isinstance(values, (list, tuple)) or len(values) != 3 or
+                any(isinstance(v, bool) or not isinstance(v, numbers.Real) or not math.isfinite(v)
+                    or name == 'box_size' and v <= 0 for v in values)
+            ):
+                return {'error': f'{name} requires three finite coordinates (positive box sizes), in Angstrom'}
 
         t0 = time.time()
         result = {
@@ -197,6 +208,9 @@ class SmartDocking:
         logger.info("[4/5] Defining active site...")
         grid = define_active_site(
             protein_pdb, ligands=ligands, cofactors=cofactors, padding=padding)
+        for prefix, values in (('center', center), ('size', box_size)):
+            if values is not None:
+                grid.update({f'{prefix}_{axis}': float(value) for axis, value in zip('xyz', values)})
         result['grid'] = grid
 
         # Save grid JSON
@@ -227,6 +241,11 @@ class SmartDocking:
             exhaustiveness=exhaustiveness, num_modes=num_modes,
             flex_pdbqt=flex_pdbqt, timeout=timeout)
         result['vina'] = vina_result
+        if result_error(vina_result):
+            return {**result, 'error': result_error(vina_result), 'success': False}
+        if vina_result.get('run_dir'):
+            result['output_dir'] = vina_result['run_dir']
+        result['grid'] = vina_result.get('grid_used', grid)
         # Expose best_score at top level for easy access
         result['best_score'] = vina_result.get('best_affinity')
 
@@ -234,11 +253,19 @@ class SmartDocking:
         if 'error' not in vina_result and vina_result.get('output_pdbqt'):
             logger.info("[6/6] Generating protein-ligand complexes...")
             lig_name = ligand_resname or 'LIG'
-            complexes = generate_complexes(
-                protein_pdb, vina_result['output_pdbqt'], self.output_dir,
-                self.stem, ligand_resname=lig_name,
-                affinities=vina_result.get('affinities', []))
+            try:
+                complexes = generate_complexes(
+                    protein_pdb, vina_result['output_pdbqt'], result['output_dir'],
+                    self.stem, ligand_resname=lig_name,
+                    affinities=vina_result.get('affinities', []))
+            except Exception as e:
+                return {**result, 'error': f'Docked poses exist, but complex generation failed: {e}', 'success': False}
             result['complexes'] = complexes
+            if not complexes:
+                return {**result, 'error': 'Docked poses exist, but no complex structure was generated', 'success': False}
+            if not all(isinstance(c, dict) and isinstance(c.get('path'), str) and os.path.isfile(c['path']) for c in complexes):
+                return {**result, 'error': 'Generated complex artifact is missing', 'success': False}
+            result['complex_pdb'] = complexes[0]['path']
 
         elapsed = time.time() - t0
         result['elapsed_s'] = round(elapsed, 1)
@@ -246,6 +273,7 @@ class SmartDocking:
         # ── Generate report ──
         report_path = self._generate_report(result)
         result['report_path'] = report_path
+        result['success'] = True
 
         if 'error' not in vina_result:
             n_complexes = len(result.get('complexes', []))
@@ -343,7 +371,7 @@ class SmartDocking:
             lines.append('')
 
         report = '\n'.join(lines)
-        report_path = os.path.join(self.output_dir, 'docking_report.md')
+        report_path = os.path.join(result.get('output_dir', self.output_dir), 'docking_report.md')
         with open(report_path, 'w', encoding='utf-8') as f:
             f.write(report)
 

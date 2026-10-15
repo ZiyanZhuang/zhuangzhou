@@ -21,8 +21,11 @@ import logging
 import os
 import threading
 import time
+from collections import OrderedDict, deque
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+from zhuangzhou.utils.robustness import atomic_write_json, redact_secrets
 
 logger = logging.getLogger(__name__)
 
@@ -69,46 +72,40 @@ class ExecutionHistory:
             with open(self._log_path, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(entry, ensure_ascii=False, default=str) + '\n')
 
+    def _iter_entries(self):
+        if not os.path.exists(self._log_path):
+            return
+        with open(self._log_path, encoding='utf-8') as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    logger.warning('Malformed JSONL entry in execution log (skipped)')
+                    continue
+                if isinstance(entry, dict):
+                    yield entry
+
     def get_recent(self, limit: int = 50, skill_filter: str = None,
                    only_failures: bool = False) -> List[dict]:
-        """Get recent execution entries."""
-        if not os.path.exists(self._log_path):
+        """Stream the log while retaining only the last matching entries."""
+        if type(limit) is not int or limit < 0:
+            raise ValueError('limit must be a non-negative integer')
+        if limit == 0:
             return []
-        entries = []
-        with open(self._log_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    logger.warning("Malformed JSONL entry in execution log (skipped): %.80s", line)
-                    continue
-                if skill_filter and entry.get('skill') != skill_filter:
-                    continue
-                if only_failures and entry.get('success', True):
-                    continue
-                entries.append(entry)
-        return entries[-limit:]
+        entries = deque(maxlen=limit)
+        for entry in self._iter_entries():
+            if skill_filter and entry.get('skill') != skill_filter:
+                continue
+            if only_failures and entry.get('success', True):
+                continue
+            entries.append(entry)
+        return list(entries)
 
     def get_last_session_log(self, session_id: str) -> List[dict]:
-        """Get all executions from a specific session."""
-        if not os.path.exists(self._log_path):
-            return []
-        entries = []
-        with open(self._log_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                    if entry.get('session_id') == session_id:
-                        entries.append(entry)
-                except json.JSONDecodeError:
-                    continue
-        return entries
+        """Get all valid execution entries from a specific session."""
+        return [entry for entry in self._iter_entries() if entry.get('session_id') == session_id]
 
     def get_failure_analysis(self, skill_name: str = None, limit: int = 20) -> List[dict]:
         """Get detailed failure analysis with full context.
@@ -149,60 +146,37 @@ class ExecutionHistory:
         return result[:limit]
 
     def get_session_ids(self, limit: int = 10) -> List[str]:
-        """Get recent unique session IDs for resumption."""
-        if not os.path.exists(self._log_path):
+        """Get recent unique sessions using bounded memory."""
+        if type(limit) is not int or limit < 0:
+            raise ValueError('limit must be a non-negative integer')
+        if limit == 0:
             return []
-        sessions = []
-        seen = set()
-        # Read backwards for efficiency
-        entries = []
-        with open(self._log_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    try:
-                        entries.append(json.loads(line))
-                    except json.JSONDecodeError:
-                        pass
-        for entry in reversed(entries):
-            sid = entry.get('session_id', '')
-            if sid and sid not in seen:
-                seen.add(sid)
-                sessions.append(sid)
-                if len(sessions) >= limit:
-                    break
-        return sessions
+        sessions = OrderedDict()
+        for entry in self._iter_entries():
+            session_id = entry.get('session_id', '')
+            if not isinstance(session_id, str) or not session_id:
+                continue
+            sessions[session_id] = None
+            sessions.move_to_end(session_id)
+            if len(sessions) > limit:
+                sessions.popitem(last=False)
+        return list(reversed(sessions))
 
     def summary(self) -> dict:
-        """Get execution history summary."""
+        """Get execution history summary, ignoring malformed or non-object rows."""
         if not os.path.exists(self._log_path):
             return {'total_executions': 0, 'log_path': self._log_path}
-        total = 0
-        successes = 0
-        failures = 0
+        total = successes = failures = 0
         skills = set()
-        with open(self._log_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                    total += 1
-                    if entry.get('success'):
-                        successes += 1
-                    else:
-                        failures += 1
-                    skills.add(entry.get('skill', ''))
-                except json.JSONDecodeError:
-                    pass
-        return {
-            'total_executions': total,
-            'successes': successes,
-            'failures': failures,
-            'unique_skills': len(skills),
-            'log_path': self._log_path,
-        }
+        for entry in self._iter_entries():
+            total += 1
+            if entry.get('success'):
+                successes += 1
+            else:
+                failures += 1
+            skills.add(entry.get('skill', ''))
+        return {'total_executions': total, 'successes': successes, 'failures': failures,
+                'unique_skills': len(skills), 'log_path': self._log_path}
 
 
 class TaskCheckpoint:
@@ -222,6 +196,7 @@ class TaskCheckpoint:
         self.execution_dir = execution_dir or EXECUTION_DIR
         os.makedirs(self.execution_dir, exist_ok=True)
         self._path = os.path.join(self.execution_dir, 'checkpoint.json')
+        self._lock = threading.RLock()
 
     def save(self, user_request: str, completed_steps: List[dict],
              remaining_plan: List[str] = None, context: dict = None,
@@ -236,8 +211,8 @@ class TaskCheckpoint:
             'context': _safe_params(context or {}),
             'status': 'interrupted',
         }
-        with open(self._path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+        with self._lock:
+            atomic_write_json(self._path, data)
 
     def load(self) -> Optional[dict]:
         """Load the most recent checkpoint."""
@@ -246,33 +221,39 @@ class TaskCheckpoint:
         try:
             with open(self._path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+            if not isinstance(data, dict) or not isinstance(data.get('user_request'), str) or not isinstance(data.get('completed_steps'), list):
+                return None
             # Only return if not too old (< 24 hours)
             ts = data.get('timestamp', '')
             if ts:
                 try:
-                    cp_time = datetime.fromisoformat(ts)
-                    age_hours = (datetime.now() - cp_time).total_seconds() / 3600
+                    cp_time = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                    age_hours = (datetime.now(cp_time.tzinfo) - cp_time).total_seconds() / 3600
                     if age_hours > 24:
                         return None
                 except (ValueError, TypeError):
-                    pass
+                    return None
             return data
         except (json.JSONDecodeError, OSError):
             return None
 
-    def clear(self):
+    def clear(self, session_id: str = None, user_request: str = None):
         """Clear the checkpoint (task completed or abandoned)."""
         if os.path.exists(self._path):
             # Don't delete — mark as completed
             try:
-                with open(self._path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                data['status'] = 'completed'
-                data['completed_at'] = datetime.now().isoformat()
-                with open(self._path, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, indent=2, ensure_ascii=False, default=str)
-            except Exception:
-                pass
+                with self._lock:
+                    with open(self._path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    if session_id is not None and data.get('session_id') != session_id:
+                        return
+                    if user_request is not None and data.get('user_request') != user_request[:500]:
+                        return
+                    data['status'] = 'completed'
+                    data['completed_at'] = datetime.now().isoformat()
+                    atomic_write_json(self._path, data)
+            except (OSError, ValueError, TypeError):
+                logger.exception('Failed to mark checkpoint completed')
 
     def has_pending(self) -> bool:
         """Check if there's an interrupted task to resume."""
@@ -306,10 +287,7 @@ class WorkspaceTracker:
         return {'files': {}}
 
     def _save(self):
-        tmp = self._path + '.tmp'
-        with open(tmp, 'w', encoding='utf-8') as f:
-            json.dump(self._data, f, indent=2, ensure_ascii=False, default=str)
-        os.replace(tmp, self._path)
+        atomic_write_json(self._path, self._data)
 
     def track_output(self, file_path: str, skill_name: str,
                      file_type: str = '', session_id: str = ''):
@@ -371,7 +349,7 @@ class WorkspaceTracker:
 def _safe_params(params: dict, max_val_len: int = 300) -> dict:
     """Safely serialize params for storage."""
     safe = {}
-    for k, v in params.items():
+    for k, v in redact_secrets(params).items():
         if k == 'config':
             continue
         if isinstance(v, str) and len(v) > max_val_len:
@@ -379,7 +357,7 @@ def _safe_params(params: dict, max_val_len: int = 300) -> dict:
         elif isinstance(v, (list, tuple)) and len(v) > 20:
             safe[k] = list(v[:20]) + ['...(truncated)']
         elif isinstance(v, set):
-            safe[k] = sorted(v)[:20]
+            safe[k] = sorted(v, key=str)[:20]
         else:
             safe[k] = v
     return safe

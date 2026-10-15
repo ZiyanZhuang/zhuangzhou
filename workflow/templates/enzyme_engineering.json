@@ -37,7 +37,7 @@
             "description": "Classify mutations by structural role",
             "params": {
                 "pdb_path": "$input.pdb_path",
-                "mutations": "$step_esm2.esm2_mutations",
+                "mutations": "$step_esm2.mutations",
                 "binding_site": "$input.binding_site"
             },
             "output_key": "classifications",

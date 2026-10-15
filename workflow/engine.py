@@ -37,10 +37,14 @@ Variable references:
 """
 
 import json
+import inspect
 import logging
 import os
 import time
 from typing import Any, Callable, Dict, List, Optional
+
+from zhuangzhou.skills.results import result_error
+from zhuangzhou.skills.registry import Skill, SkillParam
 
 logger = logging.getLogger(__name__)
 
@@ -126,11 +130,37 @@ class WorkflowEngine:
     def execute(self, workflow: dict, inputs: dict) -> WorkflowResult:
         """Execute a workflow with given inputs."""
         result = WorkflowResult()
-        t0 = time.time()
+        t0 = time.monotonic()
 
         steps = [WorkflowStep(s) for s in workflow.get('steps', [])]
+        ids = [s.id for s in steps]
+        if len(ids) != len(set(ids)) or any(not s or s in ('input', 'config', 'env') for s in ids):
+            raise ValueError('Workflow step IDs must be unique, non-empty and not reserved')
+        if any(s.on_error not in ('stop', 'skip', 'continue') for s in steps):
+            raise ValueError('on_error must be stop, skip or continue')
+        output_keys = [s.output_key for s in steps]
+        if len(output_keys) != len(set(output_keys)):
+            raise ValueError('Workflow output keys must be unique')
+        # Declared optional inputs may be omitted; undeclared/misspelled references may not.
+        declared_inputs = dict(inputs)
+        for name, definition in workflow.get('inputs', {}).items():
+            if name not in declared_inputs:
+                if definition.get('required', False) and 'default' not in definition:
+                    raise ValueError(f'Missing workflow input: {name}')
+                declared_inputs[name] = definition.get('default')
+        if workflow.get('inputs'):
+            params = [SkillParam(name=name, type=d.get('type', 'string'),
+                description=d.get('description', ''), required=d.get('required', False),
+                default=d.get('default'), choices=d.get('choices'), is_output_path=d.get('is_output_path', False))
+                for name, d in workflow['inputs'].items()]
+            validator = Skill('workflow_inputs', 'Workflow input contract', 'workflow',
+                              lambda **values: {'validated_inputs': values}, inputs=params)
+            checked = validator.execute(**declared_inputs)
+            if result_error(checked):
+                raise ValueError(result_error(checked))
+            declared_inputs = checked['validated_inputs']
         context = {
-            'input': inputs,
+            'input': declared_inputs,
             'config': self.config,
             'env': dict(os.environ),
         }
@@ -139,18 +169,17 @@ class WorkflowEngine:
                      workflow.get('name', 'unnamed'), len(steps))
 
         for step in steps:
-            # Check condition
-            if step.condition and not self._eval_condition(step.condition, context):
-                result.steps_skipped.append(step.id)
-                self._notify(step.id, 'skipped', 'Condition not met')
-                continue
-
-            # Resolve parameters
             try:
+                if step.condition and not self._eval_condition(step.condition, context):
+                    result.steps_skipped.append(step.id)
+                    self._notify(step.id, 'skipped', 'Condition not met')
+                    continue
                 resolved_params = self._resolve_params(step.params, context)
             except Exception as e:
-                result.errors[step.id] = f"Parameter resolution failed: {e}"
+                result.errors[step.id] = f"Condition/parameter resolution failed: {e}"
                 result.steps_failed.append(step.id)
+                context[step.id] = {'success': False, 'error': result.errors[step.id]}
+                self._notify(step.id, 'failed', result.errors[step.id])
                 if step.on_error == 'stop':
                     break
                 continue
@@ -160,6 +189,8 @@ class WorkflowEngine:
             if not skill:
                 result.errors[step.id] = f"Skill not found: {step.skill_name}"
                 result.steps_failed.append(step.id)
+                context[step.id] = {'success': False, 'error': result.errors[step.id]}
+                self._notify(step.id, 'failed', result.errors[step.id])
                 if step.on_error == 'stop':
                     break
                 continue
@@ -167,20 +198,29 @@ class WorkflowEngine:
             # Execute
             self._notify(step.id, 'running', step.description or step.skill_name)
             try:
-                output = skill.execute(config=self.config, **resolved_params)
+                signature = inspect.signature(skill.fn)
+                if 'config' in signature.parameters or any(
+                    p.kind == p.VAR_KEYWORD for p in signature.parameters.values()
+                ):
+                    resolved_params = {'config': self.config, **resolved_params}
+                output = skill.execute(**resolved_params)
                 context[step.id] = output
                 result.outputs[step.output_key] = output
+                error = result_error(output)
+                if error:
+                    raise RuntimeError(error)
                 result.steps_completed.append(step.id)
                 self._notify(step.id, 'done', '')
             except Exception as e:
                 logger.error("Step %s failed: %s", step.id, e)
                 result.errors[step.id] = str(e)
                 result.steps_failed.append(step.id)
+                context[step.id] = {'success': False, 'error': str(e)}
                 self._notify(step.id, 'failed', str(e))
                 if step.on_error == 'stop':
                     break
 
-        result.elapsed_seconds = time.time() - t0
+        result.elapsed_seconds = time.monotonic() - t0
         result.success = len(result.steps_failed) == 0
         return result
 
@@ -194,13 +234,12 @@ class WorkflowEngine:
     def _resolve_value(self, val: Any, context: dict) -> Any:
         """Resolve a single value, handling $references."""
         if isinstance(val, str) and val.startswith('$'):
-            parts = val[1:].split('.', 1)
-            if len(parts) == 2:
-                scope, attr = parts
-                scope_data = context.get(scope, {})
-                if isinstance(scope_data, dict):
-                    return scope_data.get(attr)
-            return None
+            value = context
+            for part in val[1:].split('.'):
+                if not isinstance(value, dict) or part not in value:
+                    raise ValueError(f'Unresolved workflow reference: {val}')
+                value = value[part]
+            return value
         elif isinstance(val, dict):
             return {k: self._resolve_value(v, context) for k, v in val.items()}
         elif isinstance(val, list):
@@ -209,27 +248,19 @@ class WorkflowEngine:
 
     def _eval_condition(self, condition: str, context: dict) -> bool:
         """Evaluate a simple condition string."""
-        # Simple conditions like "$step_1.success == true"
+        parts = condition.split(maxsplit=2)
+        if len(parts) != 3 or parts[1] not in ('==', '!=') or not parts[0].startswith('$'):
+            raise ValueError(f'Invalid workflow condition: {condition}')
+        left = self._resolve_value(parts[0], context)
         try:
-            parts = condition.split()
-            if len(parts) == 3:
-                left = self._resolve_value(parts[0], context)
-                op = parts[1]
-                right = parts[2]
-                if right == 'true':
-                    right = True
-                elif right == 'false':
-                    right = False
-                elif right.isdigit():
-                    right = int(right)
-                if op == '==':
-                    return left == right
-                if op == '!=':
-                    return left != right
-        except Exception:
-            pass
-        return True
+            right = json.loads(parts[2])
+        except json.JSONDecodeError:
+            right = parts[2]
+        return left == right if parts[1] == '==' else left != right
 
     def _notify(self, step_id: str, status: str, detail: str):
         if self._progress_callback:
-            self._progress_callback(step_id, status, detail)
+            try:
+                self._progress_callback(step_id, status, detail)
+            except Exception:
+                logger.exception('Workflow progress callback failed for %s (%s)', step_id, status)

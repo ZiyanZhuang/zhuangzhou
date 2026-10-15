@@ -1,4 +1,4 @@
-﻿"""
+"""
 Slash Command System -- Centralized command registry for Zhuangzhou.
 Inspired by industrial-grade CLIs like LLM agent runtime.
 """
@@ -1149,6 +1149,20 @@ class ColabCommand(SlashCommand):
         )
 
 
+class ConfirmCommand(SlashCommand):
+    trigger = '/confirm'
+    description = 'Execute one pending high-risk skill with its reviewed parameters'
+
+    def execute(self, context, args: List[str]):
+        from rich.console import Console
+        agent = context[0] if isinstance(context, tuple) else context
+        if len(args) != 1:
+            Console().print('Usage: /confirm <pending_skill_name>')
+            return
+        result = agent.executor.confirm_action(args[0])
+        Console().print_json(json.dumps(result, ensure_ascii=False, default=str))
+
+
 class SlashCommandManager:
     """Centralized manager to registry and dispatch commands."""
 
@@ -1158,6 +1172,7 @@ class SlashCommandManager:
 
     def _register_defaults(self):
         self.register(HelpCommand())
+        self.register(ConfirmCommand())
         self.register(ModelCommand())
         self.register(SkillsCommand())
         self.register(GraphRAGCommand())
@@ -1216,4 +1231,3 @@ class SlashCommandManager:
 
 # Global singleton
 manager = SlashCommandManager()
-

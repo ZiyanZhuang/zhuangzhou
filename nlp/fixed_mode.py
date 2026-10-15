@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from .supervisor import PipelineSupervisor, GateResult
+from zhuangzhou.skills.results import result_error
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +241,7 @@ def _build_docking_pipeline(research: ResearchResult,
         FixedStep(
             skill="plip_visualize",
             params={"complex_pdb": "{from_step_2}",
-                    "plip_result": "{from_step_3}",
+                    "plip_result": "{dict_step_3}",
                     "output_dir": None},
             description="生成互作可视化图",
         ),
@@ -396,13 +397,27 @@ class FixedMode:
         results = []
         step_outputs: Dict[int, dict] = {}
         gate_issues_all = []
+        failed_step = None
 
         for i, step in enumerate(steps, 1):
             console.print(f"  [dim]Step {i}/{len(steps)}:[/] [cyan]{step.skill}[/]  "
                           f"[dim]{step.description}[/]")
 
             # Resolve {from_step_N} references
-            resolved_params = self._resolve_refs(step.params, step_outputs)
+            try:
+                resolved_params = self._resolve_refs(step.params, step_outputs)
+            except (ValueError, KeyError, TypeError) as e:
+                results.append({'step': i, 'skill': step.skill, 'error': str(e)})
+                failed_step = i
+                break
+
+            if step.gate_before:
+                gate = self._run_gate(step.gate_before, resolved_params, step_outputs, i)
+                gate_issues_all.extend(gate.issues)
+                if gate.blocking or not gate.passed:
+                    results.append({'step': i, 'skill': step.skill, 'error': f'Gate {step.gate_before} blocked execution'})
+                    failed_step = i
+                    break
 
             # Run the skill
             skill = self.registry.get(step.skill)
@@ -410,11 +425,19 @@ class FixedMode:
                 console.print(f"  [red]✗ Skill '{step.skill}' not found[/]")
                 results.append({"step": i, "skill": step.skill,
                                  "error": f"Skill not found: {step.skill}"})
+                failed_step = i
                 break
 
-            result = skill.execute(**resolved_params)
+            try:
+                result = (self.executor._execute_skill_with_ui(step.skill, resolved_params)
+                          if self.executor is not None else skill.execute(**resolved_params))
+            except Exception as e:
+                result = {'error': str(e)}
             step_outputs[i] = result
             results.append({"step": i, "skill": step.skill, "result": result})
+            if result_error(result) or isinstance(result, dict) and result.get('needs_confirmation'):
+                failed_step = i
+                break
 
             # Post-step TypeA gate
             if step.gate_after:
@@ -422,8 +445,9 @@ class FixedMode:
                 if gate.issues:
                     gate_issues_all.extend(gate.issues)
                     self._print_gate_issues(gate, console)
-                if gate.blocking:
+                if gate.blocking or not gate.passed:
                     console.print(f"  [red bold]✗ Gate '{step.gate_after}' blocked execution[/]")
+                    failed_step = i
                     break
                 # Apply gate corrections to next step
                 if gate.corrections and i + 1 <= len(steps):
@@ -436,7 +460,8 @@ class FixedMode:
                 console.print(f"  [green]✓[/] 完成")
 
         return {
-            "success": all("error" not in r.get("result", {}) for r in results),
+            "success": failed_step is None and len(results) == len(steps),
+            "failed_step": failed_step,
             "results": results,
             "gate_issues": gate_issues_all,
             "research": research.raw,
@@ -465,19 +490,25 @@ class FixedMode:
             if isinstance(v, str) and v.startswith("{dict_step_"):
                 try:
                     step_n = int(v.split("_")[-1].rstrip("}"))
-                    resolved[k] = outputs.get(step_n, {})
+                    if step_n not in outputs:
+                        raise ValueError(f'Missing result for step {step_n}')
+                    resolved[k] = outputs[step_n]
                 except (ValueError, KeyError):
-                    resolved[k] = v
+                    raise ValueError(f'Unresolved pipeline reference: {v}')
             elif isinstance(v, str) and v.startswith("{from_step_"):
                 try:
                     step_n = int(v.split("_")[-1].rstrip("}"))
-                    prev = outputs.get(step_n, {})
+                    if step_n not in outputs:
+                        raise ValueError(f'Missing result for step {step_n}')
+                    prev = outputs[step_n]
                     # Try common output keys
-                    resolved[k] = (prev.get("pdb_path") or prev.get("complex_pdb")
+                    resolved[k] = (prev.get(k) or prev.get("complex_pdb") or prev.get("pdb_path")
                                    or prev.get("work_dir") or prev.get("output_dir")
-                                   or prev)
+                                   or prev.get('output_file'))
+                    if not resolved[k]:
+                        raise ValueError(f'No output artifact for {v}')
                 except (ValueError, KeyError):
-                    resolved[k] = v
+                    raise ValueError(f'Unresolved pipeline reference: {v}')
             else:
                 resolved[k] = v
         return resolved

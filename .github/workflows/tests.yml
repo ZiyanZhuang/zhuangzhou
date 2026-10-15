@@ -1,0 +1,33 @@
+name: Offline engineering checks
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  offline-tests:
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: '3.10'
+          - os: windows-latest
+            python: '3.12'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install core, model adapters and report/test dependencies
+        run: python -m pip install -e ".[nlp,report,dev]" wheel
+      - name: Offline unit, integration, failure injection and installed-wheel tests
+        run: python -m pytest -q -ra
+      - name: Critical syntax and name checks
+        run: python -m ruff check nlp skills workflow memory utils tests tools.py smartdocking/vina.py smartdocking/pipeline.py --select E9,F63,F7,F82
+      - name: CLI smoke
+        run: python -m zhuangzhou --help

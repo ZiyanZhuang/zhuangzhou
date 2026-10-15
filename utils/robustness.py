@@ -14,8 +14,10 @@ Production-grade patterns for defensive I/O and data handling:
 from __future__ import annotations
 
 import json
+import copy
 import logging
 import os
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Generator, Optional, Union
@@ -53,7 +55,7 @@ def safe_json_parse(
         return default
     try:
         if len(text) <= _JSON_CACHE_MAX_BYTES:
-            return _parse_json_cached(text)
+            return copy.deepcopy(_parse_json_cached(text))
         return json.loads(text)
     except (json.JSONDecodeError, ValueError, TypeError) as e:
         if log_error:
@@ -217,6 +219,37 @@ def safe_write_file(
 
 
 # ── Path Security & Normalization ──────────────────────────────────────────────
+
+
+def atomic_write_json(filepath: Union[str, Path], data: Any) -> None:
+    """Replace JSON only after a complete write; failed writes preserve the old file."""
+    path = Path(filepath)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=path.parent,
+                                         prefix=path.name + '.', suffix='.tmp', delete=False) as handle:
+            temporary = Path(handle.name)
+            json.dump(data, handle, ensure_ascii=False, indent=2, default=str, allow_nan=False)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def redact_secrets(value: Any) -> Any:
+    """Copy structured metadata while removing credentials identified by field name."""
+    if isinstance(value, dict):
+        sensitive = {'api_key', 'apikey', 'authorization', 'password', 'passwd',
+                     'secret', 'secret_key', 'token', 'access_token', 'refresh_token',
+                     'client_secret', 'private_key', 'credentials'}
+        return {key: '[REDACTED]' if str(key).lower().replace('-', '_') in sensitive
+                else redact_secrets(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [redact_secrets(item) for item in value]
+    return value
 
 def check_path_traversal(path: str) -> Optional[str]:
     """
