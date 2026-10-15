@@ -1,7 +1,7 @@
 # Engineering final report — 2026-10-15
 
 后续 CMD/UI 核验及新增修复见 [UI_AUDIT.md](UI_AUDIT.md)：当前本地离线回归
-241 passed / 5 skipped；本报告主体保留此前工程硬化批次的历史结果。
+242 passed / 5 skipped；本报告主体保留此前工程硬化批次的历史结果。
 
 基线：`b55b88ca75f5ab12dd299bb4e7ac49a1ba78c177`。
 工作分支：`codex/runtime-hardening`。工程提交：`dc7db85`、`7d6971a`、`d609050`、`00a931b`。

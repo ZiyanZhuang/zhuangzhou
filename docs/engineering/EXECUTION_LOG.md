@@ -250,3 +250,11 @@ must be identified separately from deterministic tests and mocks.
   critical Ruff checks pass. No additional dependencies or scientific algorithms.
 - User clarified this is a test machine with no existing running installation.
   Requested ChatGPT bot testing remains endpoint-blocked: no specific bot URL/API.
+
+- Both reviewers approved `fa100cf` and independently passed 76 related tests.
+  Follow-up caller inspection then reproduced a second confirmation defect with
+  an additional failing parameterized case: background wrapper names were used
+  in `/confirm` instead of the actual pending skill. The display now reads the
+  saved pending call under its existing lock; direct and wrapped paths agree.
+  Full final code regression: **242 passed / 5 skipped / 13 warnings, 7.15s**;
+  critical Ruff passes. Supplementary independent review follows before upload.

@@ -1217,18 +1217,20 @@ class AgentExecutor:
                 )
 
             self.messages.append({"role": "user", "content": tool_results})
-            pending = [tc.name for tc, obs in all_results if isinstance(obs, dict) and obs.get('needs_confirmation')]
+            pending = [(obs.get('skill', tc.name), tc.arguments) for tc, obs in all_results
+                       if isinstance(obs, dict) and obs.get('needs_confirmation')]
             if pending:
                 if monitor:
                     monitor.update(phase='wait', action='Awaiting confirmation')
                 details = []
-                for tc, obs in all_results:
-                    if isinstance(obs, dict) and obs.get('needs_confirmation'):
-                        params = json.dumps(redact_secrets(tc.arguments), ensure_ascii=False, indent=2, default=str)
-                        details.append(f'Skill: {tc.name}\nParameters (credentials redacted):\n{params}\nConfirm: /confirm {tc.name}')
+                for name, requested in pending:
+                    with self._confirmation_lock:
+                        saved = copy.deepcopy(self._pending_confirmations.get(name, requested))
+                    params = json.dumps(redact_secrets(saved), ensure_ascii=False, indent=2, default=str)
+                    details.append(f'Skill: {name}\nParameters (credentials redacted):\n{params}\nConfirm: /confirm {name}')
                 ZZInterface.display_message('confirmation', '\n\n'.join(details))
                 self._checkpoint.save(user_message, self.execution_log[turn_log_start:], session_id=self._session_id)
-                return '等待高风险操作确认: ' + ', '.join(f'/confirm {name}' for name in pending)
+                return '等待高风险操作确认: ' + ', '.join(f'/confirm {name}' for name, _ in pending)
             consecutive_errors = consecutive_errors + 1 if batch_has_error else 0
             if consecutive_errors >= 3:
                 if monitor:

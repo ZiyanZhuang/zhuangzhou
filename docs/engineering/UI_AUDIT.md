@@ -83,7 +83,7 @@ zhuangzhou
 
 ```text
 python -m pytest -q --disable-warnings
-241 passed, 5 skipped, 13 existing warnings in 7.23s
+242 passed, 5 skipped, 13 existing warnings in 7.15s
 
 python -m ruff check ui app.py commands/status.py nlp skills workflow memory utils tests tools.py smartdocking/vina.py smartdocking/pipeline.py report --select E9,F63,F7,F82 --target-version py310
 All checks passed!
@@ -98,6 +98,9 @@ passed
 
 独立 Spec 复核通过；Standards 复核发现上述确认面板缺口，新增真实 App → Agent →
 高风险工具的回归先失败、后修复通过；模型响应明确为桩，工具未执行。
+继续核验后台提交包装路径时，新增参数化测试复现 `/confirm submit_background_task`
+指向错误目标；现从执行器保存的真实待确认技能和参数生成面板及命令，前台/后台两条
+路径均通过，仍需用户显式确认。
 初轮独立隐私检查：12 文件严格 UTF-8 / Python 3.10 语法通过，516 新增行无有效
 私有路径、凭证或乱码命中；补充修复的复核和远端 CI 状态将在发布前记录。
 

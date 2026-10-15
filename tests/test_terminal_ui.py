@@ -220,7 +220,8 @@ def test_prompt_completion_includes_the_actual_local_commands():
         assert '/status' in [item.text for item in completer.get_completions(Document('/st'), None)]
 
 
-def test_chat_confirmation_displays_reviewable_parameters_without_credentials(display):
+@pytest.mark.parametrize('background', [False, True])
+def test_chat_confirmation_displays_reviewable_parameters_without_credentials(display, background):
     from zhuangzhou.app import ZhuangzhouApp
     from zhuangzhou.nlp.agent import AgentExecutor, ZhuangzhouAgent
     from zhuangzhou.nlp.backends import LLMBackend, LLMResponse, ToolCallRequest
@@ -237,11 +238,13 @@ def test_chat_confirmation_displays_reviewable_parameters_without_credentials(di
     app = ZhuangzhouApp()
     params = {'target': '[bold]fixture[/bold]', 'nested': {'api_key': 'fixture-sensitive-value'},
               'config': {'mode': 'fixture-mode'}, 'sequence': 'AC' * 180}
+    call = ToolCallRequest('pending', 'submit_background_task' if background else 'review_fixture',
+                          {'skill_name': 'review_fixture', 'skill_params': params} if background else params)
     try:
         with patch.object(app, '_get_nlp_agent', return_value=agent), \
              patch.object(app, '_get_plan_mode', return_value=None), \
              patch.object(executor, '_stream_llm_response', return_value=LLMResponse(
-                 tool_calls=[ToolCallRequest('pending', 'review_fixture', params)])), \
+                 tool_calls=[call])), \
              patch.object(ui.ZZStatus, '__enter__', lambda monitor: monitor):
             app._chat('confirmation fixture')
         text = display.export_text()
