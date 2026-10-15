@@ -272,3 +272,23 @@ must be identified separately from deterministic tests and mocks.
   each Ubuntu/Python 3.10 and Windows/Python 3.12. Actual check states read SUCCESS.
   Only evidence documentation follows; final-head checks and exact-SHA merge are
   verified separately before the completion response.
+
+## 2026-10-15 — README presentation follow-up
+
+- User selected terminal preview A and requested concise bilingual READMEs,
+  improved layout, then explicitly removed the new Logo direction. The original
+  `zhuangzhou.png` remains byte-for-byte unchanged and visible near the top.
+- Added the selected UI artwork and its editable SVG under `docs/assets/`.
+  Removed the option letter from the presentation frame; terminal content and
+  the rendered-preview disclosure remain. PNG is 1920 × 1229 with DPI metadata
+  only; the displayed workspace is synthetic and no live model/simulation ran.
+- Reorganized both READMEs around installation, commands, modules, architecture
+  and validation. Replaced repeated strategy/innovation claims with source-linked
+  behavior, external-tool requirements and explicit development directions.
+- Both languages passed local reference/anchor/image-alt/UTF-8 checks and executed
+  their bundled-parts Python example. Five linked Wiki pages returned HTTP 200
+  at their requested URLs. Browser preview confirmed the original illustration,
+  selected terminal image, loaded badges and working Chinese Usage anchor, with
+  no document overflow at the observed viewport. Preview CSS approximates GitHub.
+- Relevant package/UI regression: **31 passed in 3.18s**. Remote CI and independent
+  publication review follow before direct main delivery; no branch is created.
