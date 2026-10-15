@@ -26,6 +26,10 @@ def test_ambiguous_array_parameters_are_never_deduplicated():
     assert not parameters_match({'array': np.array([1, 2])}, {'array': np.array([1, 2])})
 
 
+def test_nested_boolean_and_number_inputs_have_distinct_identity():
+    assert not parameters_match({'center': [1, 2, 3]}, {'center': [True, 2, 3]})
+
+
 @pytest.mark.parametrize("runner,batch", [
     (run_batch_concurrent, []), (run_batch_concurrent, [call()]), (run_batch_serial, [call()]),
 ])

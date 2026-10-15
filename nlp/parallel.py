@@ -360,12 +360,19 @@ class BackgroundTask:
         }
 
 
-def parameters_match(first: dict, second: dict) -> bool:
-    """Ambiguous array/object equality must never merge independent work."""
-    try:
-        return bool(first == second)
-    except (TypeError, ValueError):
+def parameters_match(first: Any, second: Any) -> bool:
+    """Match JSON inputs exactly; Python equality conflates bools and numbers."""
+    if type(first) is not type(second):
         return False
+    if type(first) is dict:
+        return (all(type(key) is str for key in first)
+                and first.keys() == second.keys()
+                and all(parameters_match(value, second[key]) for key, value in first.items()))
+    if type(first) is list:
+        return len(first) == len(second) and all(parameters_match(a, b) for a, b in zip(first, second))
+    if type(first) in (str, int, float, bool, type(None)):
+        return first == second
+    return False
 
 
 class BackgroundTaskManager:
