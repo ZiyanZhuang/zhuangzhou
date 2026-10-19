@@ -803,13 +803,15 @@ class ZZInterface:
 
         # Author attribution
         author_style = Style(color=ZZTheme.DIM, italic=True)
-        console.print(Text("  Tianjin University: Ziyan Zhuang", style=author_style))
-        console.print(
-            Text(
-                "  Xinjiang University: Qianyu Zhao, Zifan Zhao, Shengfei Wang",
-                style=author_style,
-            )
-        )
+        console.print(Text("  Ziyan Zhuang · Tianjin University", style=author_style))
+        console.print(Text("  Qianyu Zhao · Xinjiang University", style=author_style))
+        console.print(Text("  Zifan Zhao · Lanzhou University", style=author_style))
+        console.print(Text(
+            "  Shengfei Wang\n"
+            "    University of Chinese Academy of Sciences\n"
+            "    Wuhan Institute of Virology, Chinese Academy of Sciences",
+            style=author_style,
+        ))
 
         console.print(Text("\n  Academic supervisors", style=ZZTheme.DIM))
         for name, university, school in (

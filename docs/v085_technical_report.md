@@ -1,6 +1,6 @@
 # Zhuangzhou v0.8.5 — Technical Report
 > *Rational Enzyme Engineering System*
-> Tianjin University: Ziyan Zhuang | Xinjiang University: Qianyu Zhao, Zifan Zhao, Shengfei Wang
+> Ziyan Zhuang — Tianjin University | Qianyu Zhao — Xinjiang University | Zifan Zhao — Lanzhou University | Shengfei Wang — University of Chinese Academy of Sciences; Wuhan Institute of Virology, Chinese Academy of Sciences
 
 ---
 

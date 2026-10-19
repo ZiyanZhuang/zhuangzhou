@@ -346,3 +346,28 @@ must be identified separately from deterministic tests and mocks.
   warnings in 7.26s**. Critical Ruff, JS syntax and whitespace checks pass.
   Deployment/remote checks are verified separately before completion.
 - Maintenance and local-preview instructions: `docs/engineering/PROJECT_SITE.md`.
+
+## 2026-10-19 — Contributor affiliation correction
+
+- At the user's request, corrected Zifan Zhao to **Lanzhou University** and
+  Shengfei Wang to **University of Chinese Academy of Sciences** plus
+  **Wuhan Institute of Virology, Chinese Academy of Sciences**. Institutional
+  English names follow [LZU](https://global.lzu.edu.cn/index.htm),
+  [UCAS](https://english.ucas.ac.cn/) and
+  [WIV](https://english.whiov.cas.cn/); the personal affiliations are supplied
+  by the user, not independently inferred from these websites.
+- Updated the shared terminal banner, bilingual project-page member entries and
+  both technical-report attribution headers. Other contributors and supervisors
+  retain their names and affiliations. Scientific report content is unchanged.
+- Regenerated the README/project-page terminal SVG and PNG from the real Rich UI.
+  PNG dimensions are now 1920 x 1554, with the page's image dimensions adjusted.
+  Shengfei Wang's two affiliations occupy separate lines. The original architecture
+  illustration remains byte-for-byte unchanged; no new Logo was added.
+- Four width cases first failed against the old affiliations, then passed after
+  correction. Related UI, site-artifact and wheel-installation checks:
+  **37 passed in 3.68s**. README reference/example checks, critical Ruff and
+  whitespace checks also pass. Visually checked the production and 60-column
+  terminal renderings and both website languages, with no page overflow at the
+  observed viewport. No live model or scientific simulation was run.
+- Independent publication review and exact-revision remote checks follow before
+  direct delivery to `main`; no additional branch is created.

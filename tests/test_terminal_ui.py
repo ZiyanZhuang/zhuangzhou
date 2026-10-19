@@ -40,7 +40,7 @@ def test_banner_metadata_never_splits_labels_from_values(display, width):
 
 
 @pytest.mark.parametrize('width', [60, 80, 100, 120])
-def test_banner_preserves_authors_and_full_supervisor_affiliation(display, width):
+def test_banner_preserves_authors_and_full_affiliations(display, width):
     display.width = width
     ui.ZZInterface.render_logo()
     text = display.export_text()
@@ -49,6 +49,10 @@ def test_banner_preserves_authors_and_full_supervisor_affiliation(display, width
     assert 'School of Computer Science' in text
     assert 'Guang-Rong Zhao · Tianjin University' in text
     assert 'School of Synthetic Biology and Biomanufacturing' in text
+    assert 'Zifan Zhao · Lanzhou University' in text
+    assert ('Shengfei Wang\n'
+            '    University of Chinese Academy of Sciences\n'
+            '    Wuhan Institute of Virology, Chinese Academy of Sciences') in text
     normalized = ' '.join(text.split())
     for name in ('Ziyan Zhuang', 'Qianyu Zhao', 'Zifan Zhao', 'Shengfei Wang'):
         assert name in normalized
